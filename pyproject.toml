@@ -1,0 +1,37 @@
+[project]
+name = "friday"
+version = "0.1.0"
+description = "Friday — 个人 AI 助手，能记住知识、学会操作、自动执行"
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.12",
+    "rich>=13.0",
+    "openai>=1.0",
+    "chromadb>=0.5",
+    "mem0ai>=0.1",
+    "pyyaml>=6.0",
+    "jieba>=0.42",
+    "sentence-transformers>=3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+friday = "friday.cli.app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
