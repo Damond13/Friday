@@ -132,3 +132,28 @@ knowledge/ executor/ instruction/
 - Harness 审核分离：开发 Agent 写代码，审核 Agent 只读代码
 - 所有代码通过 `uv run` 执行
 - 测试用 pytest
+
+### SDD 工作流完整流程
+
+```
+specify → clarify → plan → tasks → implement → review
+                                                        ↓
+                                                   APPROVED?
+                                                  ↓ Yes    ↓ No
+                                                  ↓    CHANGES REQUIRED
+                                            合并到 main    修复 → 再 review
+                                                  ↓
+                                            推送远程
+                                                  ↓
+                                          删除功能分支
+                                                  ↓
+                                              完成
+```
+
+### 工作流规则
+
+1. **文档生成前确认** — spec/plan/tasks/research 等文档生成前，必须展示草稿并等用户确认后再写入
+2. **文档使用中文** — 所有 spec/plan/tasks/research 等文档内容使用中文（标题、描述、说明），代码变量名用英文
+3. **审核上下文隔离** — 代码审核（/speckit.review）必须通过 Agent 工具启动独立子 Agent 执行，不在主会话中直接审核，避免开发偏见
+4. **审核角色选择** — 使用 `.claude/agents/reviewer.md` 定义的审核角色，不用 superpowers:code-reviewer
+5. **合并清理流程** — review APPROVED 后：合并到 main → 推送远程 → 删除功能分支，不留已完成的功能分支
