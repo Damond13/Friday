@@ -148,6 +148,6 @@ specify → clarify → plan → tasks → implement → review
 2. **文档使用中文** — 所有 spec/plan/tasks/research 等文档内容使用中文（标题、描述、说明），代码变量名用英文
 3. **每阶段必须等用户确认** — specify → clarify → plan → tasks → implement → review 每个阶段产出后，必须暂停并等用户明确确认（如"确认"、"没问题"、"继续"），不能自动进入下一阶段。用户有权修改任何内容后才继续
 4. **审核上下文隔离** — 代码审核（/speckit.review）必须通过 Agent 工具启动独立子 Agent 执行，不在主会话中直接审核
-5. **审核角色选择** — 使用 `.claude/agents/reviewer.md` 定义的审核角色，不用 superpowers:code-reviewer
+5. **审核角色选择** — 使用 `superpowers:code-reviewer` 子 Agent 类型执行审核，在 prompt 中附加 `.claude/agents/reviewer.md` 的检查项作为额外约束
 6. **合并清理流程** — review APPROVED 后：合并到 main → 推送远程 → 删除功能分支
 7. **优先借鉴开源方案** — 开发新功能前，必须先调研开源项目（通过 WebSearch / WebFetch），找到可借鉴的方案或可直接复用的库，避免重复造轮子。调研结果写入 spec 的"开源借鉴"章节
