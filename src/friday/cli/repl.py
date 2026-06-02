@@ -28,12 +28,29 @@ def _process_input(user_input: str, session: Session) -> bool:
             session_mod.save_session(session)
             return True
         return False
+    if _try_quick_note(stripped):
+        return False
     session.add_message("user", stripped)
     try:
         _stream_reply(session)
     except LLMError as e:
         show_error(str(e))
         session.messages.pop()
+    return False
+
+
+def _try_quick_note(text: str) -> bool:
+    """识别"记一下 xxx"意图，自动录入知识库"""
+    prefixes = ("记一下", "记录一下", "记一下：", "记一下:")
+    for p in prefixes:
+        if text.startswith(p):
+            content = text[len(p):].strip()
+            if content:
+                from friday.knowledge.adapter import add_note
+                from friday.cli.display import console
+                note = add_note(title=content[:50], content=content)
+                console.print(f"[green]✓[/green] 已记录笔记 (id: {note.id})")
+                return True
     return False
 
 
@@ -47,26 +64,31 @@ def run_repl() -> None:
         return
     current_session = session_mod.create_session()
     show_welcome()
+    from friday.knowledge.watcher import start_watcher, stop_watcher
+    start_watcher()
     prompt = PromptSession(
         "Friday> ", history=FileHistory(str(session_mod.SESSIONS_DIR.parent / "history")),
     )
     ctrl_c_count = 0
-    while True:
-        try:
-            user_input = prompt.prompt()
-            ctrl_c_count = 0
-        except KeyboardInterrupt:
-            ctrl_c_count += 1
-            if ctrl_c_count >= 2:
+    try:
+        while True:
+            try:
+                user_input = prompt.prompt()
+                ctrl_c_count = 0
+            except KeyboardInterrupt:
+                ctrl_c_count += 1
+                if ctrl_c_count >= 2:
+                    console.print("\n[dim]再见！[/dim]")
+                    break
+                console.print("\n[dim]（再按一次 Ctrl+C 退出）[/dim]")
+                continue
+            except EOFError:
                 console.print("\n[dim]再见！[/dim]")
                 break
-            console.print("\n[dim]（再按一次 Ctrl+C 退出）[/dim]")
-            continue
-        except EOFError:
-            console.print("\n[dim]再见！[/dim]")
-            break
-        if _process_input(user_input, current_session):
-            break
+            if _process_input(user_input, current_session):
+                break
+    finally:
+        stop_watcher()
 
 
 def _stream_reply(session: Session) -> None:

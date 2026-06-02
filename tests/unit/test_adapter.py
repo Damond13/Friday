@@ -1,305 +1,105 @@
-"""LLM Adapter 单元测试 — mock OpenAI SDK"""
+"""knowledge/adapter.py 单元测试 — 统一检索接口"""
 
-import json
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest
 
-from friday.llm.adapter import (
-    chat,
-    chat_stream,
-    get_client,
-    get_current_model,
-    get_current_provider,
-    switch_provider,
-    LLMConnectionError,
-    LLMAuthError,
-    LLMResponseError,
-    LLMResponse,
-    ToolCall,
-    TokenUsage,
+import friday.knowledge.store as store_mod
+import friday.knowledge.vector as vector_mod
+from friday.knowledge.adapter import (
+    add_note, delete_note, search, rag_query, _deduplicate, _build_context,
 )
-
-
-# ── 测试用的配置 fixture ───────────────────────────────
-
-MOCK_CONFIG = {
-    "llm": {
-        "provider": "zhipu",
-        "providers": {
-            "zhipu": {
-                "api_key": "test-zhipu-key",
-                "model": "glm-4-flash",
-                "max_tokens": 4096,
-            },
-            "deepseek": {
-                "api_key": "test-deepseek-key",
-                "model": "deepseek-chat",
-                "max_tokens": 4096,
-            },
-        },
-    }
-}
-
-
-def _mock_openai_response(content="你好！", tool_calls=None, usage=None):
-    """构造 mock 的 OpenAI SDK 响应"""
-    message = MagicMock()
-    message.content = content
-    message.tool_calls = tool_calls
-
-    choice = MagicMock()
-    choice.message = message
-
-    resp = MagicMock()
-    resp.choices = [choice]
-    resp.usage = usage
-    return resp
-
-
-def _mock_usage(prompt=10, completion=20, total=30):
-    u = MagicMock()
-    u.prompt_tokens = prompt
-    u.completion_tokens = completion
-    u.total_tokens = total
-    return u
-
-
-# ── get_client 测试 ────────────────────────────────────
-
-
-@patch("friday.llm.adapter.get_llm_config")
-@patch("friday.llm.adapter.OpenAI")
-def test_get_client_returns_openai_instance(mock_openai_cls, mock_get_config):
-    """get_client() 应返回 OpenAI client 实例"""
-    mock_get_config.return_value = MagicMock(
-        provider="zhipu",
-        providers={
-            "zhipu": MagicMock(
-                name="zhipu",
-                base_url="https://open.bigmodel.cn/api/paas/v4/",
-                api_key="test-key",
-                model="glm-4-flash",
-                max_tokens=4096,
-            ),
-        },
-    )
-
-    # 清除 client 缓存
-    import friday.llm.adapter as adapter_mod
-    adapter_mod._client_cache.clear()
-    adapter_mod._current_provider = ""
-
-    client = get_client()
-    mock_openai_cls.assert_called_once_with(
-        base_url="https://open.bigmodel.cn/api/paas/v4/",
-        api_key="test-key",
-    )
-    assert client is not None
-
-
-@patch("friday.llm.adapter.get_llm_config")
-def test_get_client_unknown_provider(mock_get_config):
-    """请求不存在的 provider 应抛出 ValueError"""
-    mock_get_config.return_value = MagicMock(
-        provider="zhipu",
-        providers={"zhipu": MagicMock()},
-    )
-
-    with pytest.raises(ValueError, match="未知的 provider"):
-        get_client("nonexistent")
-
-
-# ── chat 测试 ──────────────────────────────────────────
-
-
-@patch("friday.llm.adapter.get_llm_config")
-@patch("friday.llm.adapter.get_client")
-def test_chat_basic(mock_get_client, mock_get_config):
-    """基础对话：发送消息，返回文本回复"""
-    _setup_mock_config(mock_get_config)
-
-    mock_client = MagicMock()
-    mock_get_client.return_value = mock_client
-
-    usage = _mock_usage()
-    mock_client.chat.completions.create.return_value = _mock_openai_response(
-        content="你好！我是 Friday。", usage=usage
-    )
-
-    resp = chat([{"role": "user", "content": "你好"}])
-
-    assert isinstance(resp, LLMResponse)
-    assert resp.content == "你好！我是 Friday。"
-    assert resp.usage.total_tokens == 30
-
-
-@patch("friday.llm.adapter.get_llm_config")
-@patch("friday.llm.adapter.get_client")
-def test_chat_with_model_override(mock_get_client, mock_get_config):
-    """chat() 的 model 参数应覆盖默认模型"""
-    _setup_mock_config(mock_get_config)
-
-    mock_client = MagicMock()
-    mock_get_client.return_value = mock_client
-    mock_client.chat.completions.create.return_value = _mock_openai_response()
-
-    chat([{"role": "user", "content": "test"}], model="glm-5.1")
-
-    call_kwargs = mock_client.chat.completions.create.call_args[1]
-    assert call_kwargs["model"] == "glm-5.1"
-
-
-@patch("friday.llm.adapter.get_llm_config")
-@patch("friday.llm.adapter.get_client")
-def test_chat_with_tool_calls(mock_get_client, mock_get_config):
-    """chat() 应正确解析 tool_calls"""
-    _setup_mock_config(mock_get_config)
-
-    mock_client = MagicMock()
-    mock_get_client.return_value = mock_client
-
-    tc = MagicMock()
-    tc.id = "call_123"
-    tc.function.name = "shell_execute"
-    tc.function.arguments = '{"command": "ls"}'
-
-    mock_client.chat.completions.create.return_value = _mock_openai_response(
-        content=None, tool_calls=[tc]
-    )
-
-    resp = chat([{"role": "user", "content": "列一下当前目录"}])
-
-    assert len(resp.tool_calls) == 1
-    assert resp.tool_calls[0].name == "shell_execute"
-    assert resp.tool_calls[0].arguments == {"command": "ls"}
-
-
-# ── 异常包装测试 ────────────────────────────────────────
-
-
-@patch("friday.llm.adapter.get_llm_config")
-@patch("friday.llm.adapter.get_client")
-def test_chat_connection_error(mock_get_client, mock_get_config):
-    """网络错误应包装为 LLMConnectionError"""
-    _setup_mock_config(mock_get_config)
-    from openai import APIConnectionError
-
-    mock_client = MagicMock()
-    mock_get_client.return_value = mock_client
-    mock_client.chat.completions.create.side_effect = APIConnectionError(
-        request=MagicMock()
-    )
-
-    with pytest.raises(LLMConnectionError):
-        chat([{"role": "user", "content": "test"}])
-
-
-@patch("friday.llm.adapter.get_llm_config")
-@patch("friday.llm.adapter.get_client")
-def test_chat_auth_error(mock_get_client, mock_get_config):
-    """认证错误应包装为 LLMAuthError"""
-    _setup_mock_config(mock_get_config)
-    from openai import AuthenticationError
-
-    mock_client = MagicMock()
-    mock_get_client.return_value = mock_client
-    mock_client.chat.completions.create.side_effect = AuthenticationError(
-        message="Invalid API key",
-        response=MagicMock(),
-        body=None,
-    )
-
-    with pytest.raises(LLMAuthError):
-        chat([{"role": "user", "content": "test"}])
-
-
-# ── switch_provider 测试 ────────────────────────────────
-
-
-@patch("friday.llm.adapter.get_llm_config")
-def test_switch_provider(mock_get_config):
-    """switch_provider 应切换当前 provider"""
-    _setup_mock_config(mock_get_config)
-
-    import friday.llm.adapter as adapter_mod
-    adapter_mod._current_provider = ""
-
-    switch_provider("deepseek")
-    assert get_current_provider() == "deepseek"
-
-
-@patch("friday.llm.adapter.get_llm_config")
-def test_switch_provider_unknown(mock_get_config):
-    """切换到不存在的 provider 应抛出 ValueError"""
-    _setup_mock_config(mock_get_config)
-
-    with pytest.raises(ValueError, match="未知的 provider"):
-        switch_provider("nonexistent")
-
-
-@patch("friday.llm.adapter.get_llm_config")
-def test_get_current_model(mock_get_config):
-    """get_current_model 应返回当前 provider 的模型"""
-    _setup_mock_config(mock_get_config)
-
-    import friday.llm.adapter as adapter_mod
-    adapter_mod._current_provider = ""
-
-    assert get_current_model() == "glm-4-flash"
-
-
-# ── chat_stream 测试 ───────────────────────────────────
-
-
-@patch("friday.llm.adapter.get_llm_config")
-@patch("friday.llm.adapter.get_client")
-def test_chat_stream(mock_get_client, mock_get_config):
-    """chat_stream 应逐 token 返回文本"""
-    _setup_mock_config(mock_get_config)
-
-    mock_client = MagicMock()
-    mock_get_client.return_value = mock_client
-
-    # 构造 stream mock
-    chunks = []
-    for text in ["你", "好", "！"]:
-        delta = MagicMock()
-        delta.content = text
-        choice = MagicMock()
-        choice.delta = delta
-        chunk = MagicMock()
-        chunk.choices = [choice]
-        chunks.append(chunk)
-
-    mock_client.chat.completions.create.return_value = iter(chunks)
-
-    result = list(chat_stream([{"role": "user", "content": "你好"}]))
-
-    assert result == ["你", "好", "！"]
-
-
-# ── 辅助函数 ────────────────────────────────────────────
-
-
-def _setup_mock_config(mock_get_config):
-    """为 mock_get_config 设置标准返回值"""
-    mock_get_config.return_value = MagicMock(
-        provider="zhipu",
-        providers={
-            "zhipu": MagicMock(
-                name="zhipu",
-                base_url="https://open.bigmodel.cn/api/paas/v4/",
-                api_key="test-key",
-                model="glm-4-flash",
-                max_tokens=4096,
-            ),
-            "deepseek": MagicMock(
-                name="deepseek",
-                base_url="https://api.deepseek.com",
-                api_key="test-key2",
-                model="deepseek-chat",
-                max_tokens=4096,
-            ),
-        },
-    )
+from friday.knowledge.store import SearchResult
+
+
+@pytest.fixture(autouse=True)
+def _reset_vector():
+    vector_mod.reset_client()
+    yield
+    vector_mod.reset_client()
+
+
+class TestAddNote:
+    def test_creates_note_with_index(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(store_mod, "NOTES_DIR", tmp_path)
+        with patch("friday.knowledge.adapter.ensure_vector"), \
+             patch("friday.knowledge.adapter.vector.upsert"):
+            note = add_note("测试标题", "测试内容", tags=["test"])
+        assert note.id
+        assert note.title == "测试标题"
+        assert note.content == "测试内容"
+        assert note.tags == ["test"]
+        assert (tmp_path / f"{note.id}.md").exists()
+
+
+class TestDeleteNote:
+    def test_deletes_note(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(store_mod, "NOTES_DIR", tmp_path)
+        with patch("friday.knowledge.adapter.ensure_vector"), \
+             patch("friday.knowledge.adapter.vector.upsert"):
+            note = add_note("待删除", "内容")
+        with patch("friday.knowledge.adapter.vector.delete"):
+            result = delete_note(note.id)
+        assert result
+        assert not (tmp_path / f"{note.id}.md").exists()
+
+    def test_rejects_invalid_note_id(self) -> None:
+        with pytest.raises(ValueError, match="无效的 note_id"):
+            delete_note("../../etc/passwd")
+
+
+class TestSearch:
+    def test_fts_only(self) -> None:
+        with patch("friday.knowledge.adapter.get_fts") as mock_fts:
+            mock_fts.return_value = MagicMock()
+            with patch("friday.knowledge.adapter.fts_search") as mock_search:
+                mock_search.return_value = [
+                    SearchResult(note_id="n1", title="T", snippet="S", score=0.9, source="fts")
+                ]
+                results = search("测试", mode="fts")
+        assert len(results) == 1
+        assert results[0].source == "fts"
+
+
+class TestRagQuery:
+    def test_returns_answer(self) -> None:
+        mock_results = [SearchResult(note_id="n1", title="T", snippet="S", score=0.9)]
+        with patch("friday.knowledge.adapter.search", return_value=mock_results), \
+             patch("friday.knowledge.adapter._ask_llm", return_value="这是回答"):
+            answer = rag_query("测试问题")
+        assert answer == "这是回答"
+
+    def test_no_results(self) -> None:
+        with patch("friday.knowledge.adapter.search", return_value=[]):
+            answer = rag_query("不存在的内容")
+        assert answer == "未找到相关知识。"
+
+    def test_build_context_uses_xml_tags(self) -> None:
+        results = [
+            SearchResult(note_id="n1", title="标题", snippet="内容片段"),
+        ]
+        context = _build_context(results)
+        assert "<knowledge-1>" in context
+        assert "</knowledge-1>" in context
+
+
+class TestDeduplicate:
+    def test_keeps_highest_score(self) -> None:
+        results = [
+            SearchResult(note_id="a", score=0.5, source="fts"),
+            SearchResult(note_id="a", score=0.9, source="vector"),
+            SearchResult(note_id="b", score=0.7, source="fts"),
+        ]
+        deduped = _deduplicate(results)
+        assert len(deduped) == 2
+        assert deduped[0].note_id == "a"
+        assert deduped[0].score == 0.9
+        assert deduped[1].note_id == "b"
+
+    def test_empty(self) -> None:
+        assert _deduplicate([]) == []

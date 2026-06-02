@@ -57,6 +57,17 @@ def show_streaming_token(token: str) -> None:
     console.print(token, end="")
 
 
+def show_search_results(results: list) -> None:
+    """显示知识库检索结果"""
+    for i, r in enumerate(results, 1):
+        source_tag = f"[dim][{r.source}][/dim]" if r.source else ""
+        console.print(f"  [bold]#{i}[/bold] {r.title} {source_tag}")
+        console.print(f"      {r.snippet}")
+        if r.file_path:
+            console.print(f"      [dim]{r.file_path}[/dim]")
+        console.print()
+
+
 def show_assistant_separator() -> None:
     """显示助手回复前的分隔线"""
     console.print(Rule(style="dim"))

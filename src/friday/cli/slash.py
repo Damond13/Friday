@@ -41,6 +41,8 @@ def cmd_help(session: Session, args: str = "") -> CommandResult:
     table.add_column("命令", width=15)
     table.add_column("说明")
     table.add_row("/help", "显示所有可用命令")
+    table.add_row("/note <内容>", "记录知识笔记")
+    table.add_row("/search <查询>", "搜索知识库")
     table.add_row("/save", "保存当前会话")
     table.add_row("/history", "列出历史会话")
     table.add_row("/load <编号>", "恢复历史会话")
@@ -105,6 +107,35 @@ def cmd_load(session: Session, args: str = "") -> CommandResult:
     session.messages = loaded.messages
     session.summary = loaded.summary
     console.print(f"[green]✓[/green] 已加载会话 ({len(session.messages)} 条消息)")
+    return CommandResult()
+
+
+@_register("note", "记录知识笔记")
+def cmd_note(session: Session, args: str = "") -> CommandResult:
+    from friday.cli.display import console
+    from friday.knowledge.adapter import add_note
+    if not args.strip():
+        console.print("[yellow]用法: /note <内容>[/yellow]")
+        return CommandResult()
+    title = args.strip()[:50]
+    note = add_note(title=title, content=args.strip())
+    console.print(f"[green]✓[/green] 已记录笔记 (id: {note.id})")
+    return CommandResult()
+
+
+@_register("search", "搜索知识库")
+def cmd_search(session: Session, args: str = "") -> CommandResult:
+    from friday.cli.display import console
+    from friday.knowledge.adapter import search as kb_search
+    if not args.strip():
+        console.print("[yellow]用法: /search <查询>[/yellow]")
+        return CommandResult()
+    results = kb_search(args.strip())
+    if not results:
+        console.print("[dim]未找到相关知识[/dim]")
+        return CommandResult()
+    from friday.cli.display import show_search_results
+    show_search_results(results)
     return CommandResult()
 
 
