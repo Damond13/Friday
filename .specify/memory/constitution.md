@@ -1,16 +1,15 @@
 <!--
 Sync Impact Report
 ==================
-Version: 1.0 → 1.1.0 (MINOR bump — added Governance section + Coding Standards)
+Version: 1.1.0 → 1.2.0 (MINOR bump — added 测试执行规范 section)
 Modified principles: none (all 5 principles preserved as-is)
 Added sections:
-  - 编码规范 (Coding Standards)
-  - Governance (amendment procedure, versioning, compliance)
+  - 测试执行规范 (Test Execution Rules)
 Removed sections: none
 Templates requiring updates:
-  - .specify/templates/plan-template.md ✅ (Constitution Check aligns with principles)
+  - .specify/templates/plan-template.md ✅ (no conflicts)
   - .specify/templates/spec-template.md ✅ (no conflicts)
-  - .specify/templates/tasks-template.md ✅ (task categorization compatible)
+  - .specify/templates/tasks-template.md ✅ (no conflicts)
 Follow-up TODOs: none
 -->
 
@@ -49,6 +48,12 @@ CLI 工具，不追求花哨 UI，追求效率和实用性。短输出直接显�
 - 测试覆盖核心逻辑，CLI 层不写测试
 - 代码通过 `uv run` 执行，测试用 pytest
 
+## 测试执行规范
+
+- SDD 工作流中，**只有 implement 阶段**允许运行自动化测试，且只运行当前任务相关的测试
+- 全量自动化测试（如 `uv run pytest tests/ -v`）只在用户明确要求时才执行
+- review、plan、specify、clarify、tasks 等阶段禁止运行任何自动化测试
+
 ## 模块边界
 
 - **cli/** — 只管交互（输入/输出/会话管理），不包含业务逻辑
@@ -76,4 +81,4 @@ CLI 工具，不追求花哨 UI，追求效率和实用性。短输出直接显�
 - **合规检查**：每个功能的 plan.md MUST 包含 Constitution Check 章节
 - **运行时指导**：开发过程中遵循 `.claude/CLAUDE.md` 和 `.specify/memory/` 下的决策记录
 
-**Version**: 1.1.0 | **Ratified**: 2026-06-01 | **Last Amended**: 2026-06-01
+**Version**: 1.2.0 | **Ratified**: 2026-06-01 | **Last Amended**: 2026-06-03

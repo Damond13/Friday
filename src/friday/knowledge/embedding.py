@@ -1,7 +1,13 @@
 """本地 Embedding Adapter — BAAI/bge-m3 模型"""
 
+from __future__ import annotations
+
 import os
 from functools import lru_cache
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
 
 _EMBEDDING_DIM = 1024
 _MODEL_NAME = "BAAI/bge-m3"
@@ -27,6 +33,11 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
 def embed_text(text: str) -> list[float]:
     """将单条文本转为向量"""
     return embed_texts([text])[0]
+
+
+def get_shared_model() -> SentenceTransformer:
+    """获取共享的 SentenceTransformer 模型实例（供外部模块复用）"""
+    return _get_model()
 
 
 def get_embedding_dim() -> int:
