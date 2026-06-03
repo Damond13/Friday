@@ -24,7 +24,7 @@ dev = [
 ]
 
 [project.scripts]
-friday = "friday.cli.app:main"
+friday = "friday.cli.app:entry"
 
 [build-system]
 requires = ["hatchling"]

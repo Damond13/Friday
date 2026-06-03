@@ -113,6 +113,16 @@ knowledge/ executor/ instruction/
     └─ ChromaDB + SQLite ─┘
 ```
 
+## CodeGraph 提醒
+
+项目已配置 CodeGraph 索引（`.codegraph/`），适合以下场景时优先使用：
+- 查函数/类的调用链和影响范围（`codegraph_trace`, `codegraph_impact`）
+- 跨模块依赖分析（`codegraph_callers`, `codegraph_callees`）
+- 快速定位某个概念的代码上下文（`codegraph_context`）
+- 了解文件结构和符号概览（`codegraph_files`, `codegraph_search`）
+
+全局统计类任务（行数、文件列表、模块概览）用常规工具更直接。
+
 ## 编码规范
 
 - 每个文件不超过 200 行，函数不超过 30 行

@@ -1,5 +1,6 @@
 """本地 Embedding Adapter — BAAI/bge-m3 模型"""
 
+import os
 from functools import lru_cache
 
 _EMBEDDING_DIM = 1024
@@ -8,7 +9,8 @@ _MODEL_NAME = "BAAI/bge-m3"
 
 @lru_cache(maxsize=1)
 def _get_model():
-    """延迟加载 sentence-transformers 模型"""
+    """延迟加载 sentence-transformers 模型，离线模式避免 HuggingFace 超时"""
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
     from sentence_transformers import SentenceTransformer
     return SentenceTransformer(_MODEL_NAME)
 

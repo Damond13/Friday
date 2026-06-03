@@ -51,5 +51,10 @@ def main(
         run_interactive()
 
 
-if __name__ == "__main__":
+def entry() -> None:
+    """CLI 入口点，供 pyproject.toml scripts 调用"""
     app()
+
+
+if __name__ == "__main__":
+    entry()

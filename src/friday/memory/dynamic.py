@@ -44,12 +44,21 @@ def _get_memory() -> Any:
 
 
 def _init_memory() -> Any:
-    """初始化 Mem0，配置本地 ChromaDB"""
+    """初始化 Mem0，配置本地 ChromaDB + HuggingFace embedding"""
     try:
+        import os
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
+
         from mem0 import Memory
 
         llm_config = _build_llm_config()
         config: dict[str, Any] = {
+            "embedder": {
+                "provider": "huggingface",
+                "config": {
+                    "model": "BAAI/bge-m3",
+                },
+            },
             "vector_store": {
                 "provider": "chroma",
                 "config": {
@@ -104,14 +113,15 @@ def search_memory(query: str, limit: int = 10) -> list[MemorySearchResult]:
     if m is None:
         return []
 
-    results = m.search(query=query, user_id="friday_user", limit=limit)
+    raw = m.search(query=query, limit=limit, filters={"user_id": "friday_user"})
+    results = raw.get("results", []) if isinstance(raw, dict) else raw
     items: list[MemorySearchResult] = []
     for r in results:
         items.append(MemorySearchResult(
             source="dynamic",
-            content=r.get("memory", ""),
-            score=r.get("score", 0.0),
-            metadata=r.get("metadata", {}),
+            content=r.get("memory", "") if isinstance(r, dict) else str(r),
+            score=r.get("score", 0.0) if isinstance(r, dict) else 0.0,
+            metadata=r.get("metadata", {}) if isinstance(r, dict) else {},
         ))
     return items
 
@@ -122,13 +132,14 @@ def list_memories() -> list[MemoryItem]:
     if m is None:
         return []
 
-    results = m.get_all(user_id="friday_user")
+    raw = m.get_all(filters={"user_id": "friday_user"})
+    results = raw.get("results", []) if isinstance(raw, dict) else raw
     items: list[MemoryItem] = []
     for r in results:
         items.append(MemoryItem(
-            id=r.get("id", ""),
-            content=r.get("memory", ""),
-            metadata=r.get("metadata", {}),
+            id=r.get("id", "") if isinstance(r, dict) else "",
+            content=r.get("memory", "") if isinstance(r, dict) else str(r),
+            metadata=r.get("metadata", {}) if isinstance(r, dict) else {},
         ))
     return items
 
