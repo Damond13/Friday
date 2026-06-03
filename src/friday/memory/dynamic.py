@@ -71,7 +71,19 @@ def _init_memory() -> Any:
             config["llm"] = llm_config
 
         MEMORY_DIR.mkdir(parents=True, exist_ok=True)
-        return Memory.from_config(config)
+        memory = Memory.from_config(config)
+
+        # 用共享实例替换 Mem0 内部模型，省掉一份内存
+        # 注意：embedding_model.model 是 Mem0 (mem0ai>=0.1.0) 未文档化的内部属性，
+        # 若 Mem0 升级后属性路径变更，try/except 会降级为独立模型
+        try:
+            from friday.knowledge.embedding import get_shared_model
+            memory.embedding_model.model = get_shared_model()
+            logger.info("已将 Mem0 内部模型替换为共享实例")
+        except Exception as inject_exc:
+            logger.warning("共享模型注入失败，Mem0 使用独立模型: %s", inject_exc)
+
+        return memory
     except Exception as exc:
         logger.warning("Mem0 初始化失败，动态记忆不可用: %s", exc)
         return None
