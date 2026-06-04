@@ -72,3 +72,18 @@ def show_assistant_separator() -> None:
     """显示助手回复前的分隔线"""
     console.print(Rule(style="dim"))
     console.print("[bold cyan]Friday:[/bold cyan] ", end="")
+
+
+def show_tool_call(name: str, arguments: dict) -> None:
+    """显示正在执行的工具调用"""
+    args_str = " ".join(f"{k}={v!r}" for k, v in arguments.items())
+    console.print(f"  [bold yellow]🔧 {name}[/bold yellow] [dim]{args_str}[/dim]")
+
+
+def show_tool_result(success: bool, output: str) -> None:
+    """显示工具执行结果摘要"""
+    icon = "[green]✓[/green]" if success else "[red]✗[/red]"
+    preview = output[:200].replace("\n", " ")
+    if len(output) > 200:
+        preview += "..."
+    console.print(f"  {icon} [dim]{preview}[/dim]")

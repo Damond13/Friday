@@ -9,12 +9,14 @@ from friday.cli.display import (
     console,
     show_assistant_separator,
     show_config_guide,
-    show_streaming_token,
     show_welcome,
     show_error,
+    show_tool_call,
+    show_tool_result,
 )
 from friday.cli.session import Session
-from friday.llm import chat_stream, LLMError
+from friday.llm import LLMError
+from friday.llm.prompts import PromptContext
 
 
 def _process_input(user_input: str, session: Session) -> bool:
@@ -32,7 +34,7 @@ def _process_input(user_input: str, session: Session) -> bool:
         return False
     session.add_message("user", stripped)
     try:
-        _stream_reply(session)
+        _agent_reply(session)
     except LLMError as e:
         show_error(str(e))
         session.messages.pop()
@@ -63,6 +65,7 @@ def run_repl() -> None:
         show_config_guide()
         return
     current_session = session_mod.create_session()
+    _setup_safety_callbacks()
     show_welcome()
     from friday.knowledge.watcher import start_watcher, stop_watcher
     start_watcher()
@@ -91,18 +94,50 @@ def run_repl() -> None:
         stop_watcher()
 
 
-def _stream_reply(session: Session) -> None:
-    """流式调用 LLM 并输出回复"""
+def _agent_reply(session: Session) -> None:
+    """通过 Agent 循环调用 LLM，支持工具调用"""
+    from friday.llm.agent import run_agent_loop
     show_assistant_separator()
     messages = session.to_messages()
-    full_reply = ""
+    context = _build_context(session)
+    result = run_agent_loop(
+        messages,
+        context=context,
+        on_tool_call=show_tool_call,
+        on_tool_result=show_tool_result,
+    )
+    if result.reply:
+        console.print(result.reply)
+    console.print()
+    console.print()
+    if result.reply:
+        session.add_message("assistant", result.reply)
+
+
+def _build_context(session: Session) -> PromptContext:
+    """组装 Prompt 上下文：从记忆系统加载用户偏好"""
+    memories: list[str] = []
     try:
-        for token in chat_stream(messages):
-            show_streaming_token(token)
-            full_reply += token
-    except KeyboardInterrupt:
-        console.print("\n[dim]（回复已中断）[/dim]")
-    console.print()
-    console.print()
-    if full_reply:
-        session.add_message("assistant", full_reply)
+        from friday.memory.dynamic import search_memory
+        results = search_memory("用户偏好 习惯 设置", limit=5)
+        memories = [r["memory"] for r in results if "memory" in r]
+    except Exception:
+        pass
+    return PromptContext(user_memories=memories)
+
+
+def _setup_safety_callbacks() -> None:
+    """注册安全确认回调"""
+    from rich.prompt import Confirm
+    from friday.executor import set_confirm_callback, SafetyLevel
+    from friday.llm.executors import set_confirm_callback as set_llm_confirm
+
+    def _confirm_command(command: str, level: SafetyLevel) -> bool:
+        label = "危险" if level == SafetyLevel.DANGEROUS else "需确认"
+        return Confirm.ask(f"[{label}] 执行: {command}", default=False)
+
+    def _confirm_overwrite(desc: str) -> bool:
+        return Confirm.ask(f"[需确认] {desc}", default=False)
+
+    set_confirm_callback(_confirm_command)
+    set_llm_confirm(_confirm_overwrite)
