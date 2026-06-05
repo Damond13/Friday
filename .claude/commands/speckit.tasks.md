@@ -125,10 +125,10 @@ Check if `.specify/extensions.yml` exists in the project root.
 Output path to generated tasks.md and summary:
 - Total task count
 - Task count per user story
-- Parallel opportunities identified
+- Parallel groups summary (group count, max parallelism, group-task mapping)
 - Independent test criteria for each story
 - Suggested MVP scope (typically just User Story 1)
-- Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
+- Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, [G{n}], [P?], [Story?], file paths)
 
 Context for task generation: $ARGUMENTS
 
@@ -145,29 +145,31 @@ The tasks.md should be immediately executable - each task must be specific enoug
 Every task MUST strictly follow this format:
 
 ```text
-- [ ] [TaskID] [P?] [Story?] Description with file path
+- [ ] [TaskID] [G{n}] [P?] [Story?] Description with file path
 ```
 
 **Format Components**:
 
 1. **Checkbox**: ALWAYS start with `- [ ]` (markdown checkbox)
 2. **Task ID**: Sequential number (T001, T002, T003...) in execution order
-3. **[P] marker**: Include ONLY if task is parallelizable (different files, no dependencies on incomplete tasks)
-4. **[Story] label**: REQUIRED for user story phase tasks only
+3. **[G{n}] marker**: Parallel Group number (G0, G1, G2...). Tasks in the same group have NO file conflicts and can run in parallel. G0 = serial foundational tasks. Omit if no parallelism (defaults to G0).
+4. **[P] marker**: Include ONLY if task is parallelizable within its group (different files, no dependencies on incomplete tasks within the same group). Redundant when [G{n}] is present but retained for readability.
+5. **[Story] label**: REQUIRED for user story phase tasks only
    - Format: [US1], [US2], [US3], etc. (maps to user stories from spec.md)
    - Setup phase: NO story label
-   - Foundational phase: NO story label  
+   - Foundational phase: NO story label
    - User Story phases: MUST have story label
    - Polish phase: NO story label
-5. **Description**: Clear action with exact file path
+6. **Description**: Clear action with exact file path
 
 **Examples**:
 
-- ✅ CORRECT: `- [ ] T001 Create project structure per implementation plan`
-- ✅ CORRECT: `- [ ] T005 [P] Implement authentication middleware in src/middleware/auth.py`
-- ✅ CORRECT: `- [ ] T012 [P] [US1] Create User model in src/models/user.py`
-- ✅ CORRECT: `- [ ] T014 [US1] Implement UserService in src/services/user_service.py`
-- ❌ WRONG: `- [ ] Create User model` (missing ID and Story label)
+- ✅ CORRECT: `- [ ] T001 [G0] Create project structure per implementation plan`
+- ✅ CORRECT: `- [ ] T005 [G1] [P] [US1] Implement auth middleware in src/middleware/auth.py`
+- ✅ CORRECT: `- [ ] T012 [G2] [P] [US1] Create User model in src/models/user.py`
+- ✅ CORRECT: `- [ ] T014 [G3] [US2] Implement UserService in src/services/user_service.py`
+- ✅ CORRECT: `- [ ] T020 [US3] Create report in src/reports/summary.py` (no group = G0 serial)
+- ❌ WRONG: `- [ ] Create User model` (missing ID, group, and Story label)
 - ❌ WRONG: `T001 [US1] Create model` (missing checkbox)
 - ❌ WRONG: `- [ ] [US1] Create User model` (missing Task ID)
 - ❌ WRONG: `- [ ] T001 [US1] Create model` (missing file path)
@@ -197,6 +199,22 @@ Every task MUST strictly follow this format:
    - Foundational/blocking tasks → Foundational phase (Phase 2)
    - Story-specific setup → within that story's phase
 
+### Parallel Group Detection
+
+When generating tasks, analyze file paths and dependencies to assign [G{n}] group markers:
+
+1. **G0 (Serial Foundation)**: Setup tasks, foundational prerequisites that ALL user stories depend on. No parallel execution.
+2. **G1+ (Parallel Groups)**: Tasks that can run concurrently within their group. Requirements for same-group:
+   - No two tasks modify the same file
+   - No task depends on output of another task in the same group
+   - All tasks in a group share the same `Depends On` prerequisite groups
+3. **Group assignment rules**:
+   - Tasks touching different files with no cross-dependencies → same group (parallel)
+   - Tasks touching the same file or with sequential dependencies → different groups (serial)
+   - User stories that touch independent code areas → can be in the same parallel group
+   - A group with only 1 task is effectively serial but still gets a group number for consistency
+4. **File conflict detection**: When two tasks both reference the same file path, assign them to different groups
+
 ### Phase Structure
 
 - **Phase 1**: Setup (project initialization)
@@ -205,6 +223,33 @@ Every task MUST strictly follow this format:
   - Within each story: Tests (if requested) → Models → Services → Endpoints → Integration
   - Each phase should be a complete, independently testable increment
 - **Final Phase**: Polish & Cross-Cutting Concerns
+
+## Parallel Groups Summary (REQUIRED)
+
+The tasks.md file MUST end with a `## Parallel Groups` section containing a summary table. This table is the contract between the tasks command (producer) and the implement command (consumer).
+
+**Format**:
+
+```markdown
+## Parallel Groups
+
+| Group | Tasks | Depends On | Notes |
+|-------|-------|------------|-------|
+| G0    | T001, T002 | — | Setup, serial |
+| G1    | T003, T004 | G0 | Parallel execution |
+| G2    | T005 | G1 | Serial |
+
+**Max parallelism**: {largest group task count}
+**Total groups**: {number of groups}
+```
+
+**Generation rules**:
+1. Group numbering starts at G0 (serial/foundational)
+2. `Depends On` lists prerequisite groups (use `—` for G0 with no dependencies)
+3. `Notes` describes the execution strategy for each group
+4. `Max parallelism` is the task count of the largest parallel group
+5. Groups are listed in execution order (G0 first, then G1, etc.)
+6. If no parallelism exists (all tasks serial), still generate the table with a single G0 group
 
 ## Done When
 

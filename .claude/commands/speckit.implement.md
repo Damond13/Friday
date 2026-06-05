@@ -145,41 +145,88 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **Terraform**: `.terraform/`, `*.tfstate*`, `*.tfvars`, `.terraform.lock.hcl`
    - **Kubernetes/k8s**: `*.secret.yaml`, `secrets/`, `.kube/`, `kubeconfig*`, `*.key`, `*.crt`
 
-5. Parse tasks.md structure and extract:
-   - **Task phases**: Setup, Tests, Core, Integration, Polish
-   - **Task dependencies**: Sequential vs parallel execution rules
-   - **Task details**: ID, description, file paths, parallel markers [P]
-   - **Execution flow**: Order and dependency requirements
+5. Parse tasks.md and detect execution mode:
 
-6. Execute implementation following the task plan:
-   - **Phase-by-phase execution**: Complete each phase before moving to the next
-   - **Respect dependencies**: Run sequential tasks in order, parallel tasks [P] can run together  
-   - **Follow TDD approach**: Execute test tasks before their corresponding implementation tasks
-   - **File-based coordination**: Tasks affecting the same files must run sequentially
-   - **Validation checkpoints**: Verify each phase completion before proceeding
+   **Scan for `## Parallel Groups` section** in tasks.md:
+   - If found: extract the group table → **Orchestrator Mode** (proceed to step 6)
+   - If NOT found: fall back to scanning for `[P]` markers → **Legacy Mode** (proceed to step 8)
+   - If user input contains `--no-parallel` or `no-parallel`: force **Legacy Mode** regardless
 
-7. Implementation execution rules:
-   - **Setup first**: Initialize project structure, dependencies, configuration
-   - **Tests before code**: If you need to write tests for contracts, entities, and integration scenarios
-   - **Core development**: Implement models, services, CLI commands, endpoints
-   - **Integration work**: Database connections, middleware, logging, external services
-   - **Polish and validation**: Unit tests, performance optimization, documentation
+6. **Orchestrator Mode** — Group-based parallel execution:
 
-8. Progress tracking and error handling:
-   - Report progress after each completed task
-   - Halt execution if any non-parallel task fails
-   - For parallel tasks [P], continue with successful tasks, report failed ones
-   - Provide clear error messages with context for debugging
-   - Suggest next steps if implementation cannot proceed
-   - **IMPORTANT** For completed tasks, make sure to mark the task off as [X] in the tasks file.
+   Process groups in order (G0 → G1 → G2 → ...). For each group:
 
-9. Completion validation:
-   - Verify all required tasks are completed
-   - Check that implemented features match the original specification
-   - Validate that tests pass and coverage meets requirements
-   - Confirm the implementation follows the technical plan
+   **a) Single-task group (1 task)**: Execute directly in the main Agent session (no worktree needed). Apply the Developer Agent constraints. Mark task `[X]` in tasks.md when done.
 
-Note: This command assumes a complete task breakdown exists in tasks.md. If tasks are incomplete or missing, suggest running `/speckit.tasks` first to regenerate the task list.
+   **b) Multi-task group (2+ tasks)**: Dispatch parallel sub-Agents:
+   - For each task in the group, launch an `Agent` tool call with:
+     - `isolation: "worktree"` — Claude Code handles worktree creation/merge/cleanup
+     - `description`: "{TaskID}: {short description}"
+     - `prompt`: Constructed per step 7 below
+   - Issue ALL Agent calls for the group in a **single message** (this triggers concurrent execution)
+   - **Concurrency control**: If `max_concurrency` is set in the Parallel Groups table, limit concurrent Agents to that number by batching (e.g., max_concurrency=2 with 5 tasks → 3 batches)
+   - **force_sequential override**: If a task has `force_sequential` in its description, remove it from the parallel batch and execute it in the main session after the group's parallel tasks complete
+   - Wait for ALL agents in the group to complete before proceeding to the next group
+   - After group completion, report results and mark tasks `[X]` in tasks.md
+
+   **c) Group failure handling**:
+   - If ANY sub-agent in a group fails: pause execution, report which task(s) failed and the error details
+   - Do NOT proceed to the next group until the user decides: retry, skip, or abort
+   - If user says "skip": mark the failed task with a note in tasks.md, proceed to next group
+   - If user says "abort": stop execution entirely
+
+7. **Sub-Agent context preparation**:
+
+   For each parallel task dispatched to a sub-Agent, construct a minimal but sufficient prompt:
+
+   ```
+   You are implementing task {TaskID} for the {feature name} feature.
+
+   ## Your Task
+   {Full task description from tasks.md}
+
+   ## Context
+   - Feature: {feature name from spec.md}
+   - Target files: {file paths from task description}
+   - Tech stack: {from plan.md Technical Context}
+
+   ## Relevant Design
+   {Extract from plan.md: only sections directly related to this task's files/concepts}
+
+   ## Relevant Contracts (if applicable)
+   {Extract from contracts/: only items related to this task's interfaces}
+
+   ## Coding Standards
+   - Follow Developer Agent constraints from .claude/agents/developer.md
+   - Max 30 lines per function, 200 lines per file (for code files)
+   - All external calls through adapter layer
+   - Type annotations required
+
+   ## After Implementation
+   Report what you changed and which files were created/modified.
+   ```
+
+   **Key principle**: Include only what the sub-Agent needs — task description, relevant design excerpt, target files. Do NOT send the full spec, full plan, or unrelated contracts.
+
+8. **Legacy Mode** — Serial execution (backward compatible):
+
+   When tasks.md has no `## Parallel Groups` section or user requested `--no-parallel`:
+
+   - Parse tasks by phase (Setup, Foundational, User Stories, Polish)
+   - Execute tasks sequentially in phase order
+   - Tasks with `[P]` markers are noted but executed one at a time
+   - Mark each completed task `[X]` in tasks.md
+   - This mode produces identical behavior to the pre-parallel implement command
+
+9. Progress tracking and completion:
+
+   - **Orchestrator Mode**: Report after each group completes (tasks done, tasks remaining, next group)
+   - **Legacy Mode**: Report after each task completes
+   - **IMPORTANT**: Mark completed tasks as `[X]` in tasks.md immediately after each task/group finishes
+   - After all tasks complete:
+     - Verify all tasks marked `[X]`
+     - Check implementation matches specification
+     - Confirm coding standards followed
 
 ## Mandatory Post-Execution Hooks
 
@@ -216,11 +263,40 @@ Check if `.specify/extensions.yml` exists in the project root.
 
 ## Completion Report
 
-Report final status with summary of completed work.
+Report final status with summary of completed work:
+- Execution mode used: Orchestrator Mode (parallel) or Legacy Mode (serial)
+- Tasks completed vs total
+- Groups processed (if Orchestrator Mode)
+- Any failed or skipped tasks
+- Files modified
 
 ## Done When
 
 - [ ] All tasks in tasks.md completed and marked `[X]`
 - [ ] Implementation validated against specification, plan, and test coverage
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
-- [ ] Completion reported to user with summary of completed work
+- [ ] Completion reported to user with execution mode, task summary, and files modified
+
+## Strategy Controls
+
+The following controls allow developers to adjust parallel execution behavior:
+
+### In tasks.md Parallel Groups Table
+
+| Control | Where | Effect |
+|---------|-------|--------|
+| `max_concurrency` | Parallel Groups table `**Max parallelism**` line | Limit concurrent sub-Agents per group |
+| `force_sequential` | Individual task description | Remove task from parallel batch, execute serially |
+
+### In user prompt (when running `/speckit.implement`)
+
+| Instruction | Effect |
+|-------------|--------|
+| `--no-parallel` or `no-parallel` | Force full serial execution (Legacy Mode) |
+| (no instruction) | Use groups from tasks.md (Orchestrator Mode), or Legacy if no groups |
+
+### Backward Compatibility
+
+- tasks.md without `## Parallel Groups` section → Legacy Mode (identical to pre-parallel behavior)
+- tasks.md without `[G{n}]` markers on tasks → all tasks treated as G0 (serial)
+- `--no-parallel` always available as escape hatch
