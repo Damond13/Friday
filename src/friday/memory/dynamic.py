@@ -57,7 +57,7 @@ def _init_memory() -> Any:
             "embedder": {
                 "provider": "huggingface",
                 "config": {
-                    "model": "BAAI/bge-m3",
+                    "model": "BAAI/bge-small-zh-v1.5",
                 },
             },
             "vector_store": {

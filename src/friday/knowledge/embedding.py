@@ -1,4 +1,4 @@
-"""本地 Embedding Adapter — BAAI/bge-m3 模型"""
+"""本地 Embedding Adapter — BAAI/bge-small-zh-v1.5 模型"""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer
 
-_EMBEDDING_DIM = 1024
-_MODEL_NAME = "BAAI/bge-m3"
+_EMBEDDING_DIM = 512
+_MODEL_NAME = "BAAI/bge-small-zh-v1.5"
 
 
 @lru_cache(maxsize=1)
@@ -22,7 +22,7 @@ def _get_model():
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
-    """将文本列表转为向量列表（1024 维）"""
+    """将文本列表转为向量列表（512 维）"""
     if not texts:
         return []
     model = _get_model()
