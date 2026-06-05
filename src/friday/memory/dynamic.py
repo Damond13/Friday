@@ -48,6 +48,7 @@ def _init_memory() -> Any:
     try:
         import os
         os.environ.setdefault("HF_HUB_OFFLINE", "1")
+        os.environ.setdefault("MEM0_TELEMETRY", "False")
 
         from mem0 import Memory
 

@@ -118,9 +118,15 @@ def _build_context(session: Session) -> PromptContext:
     """组装 Prompt 上下文：从记忆系统加载用户偏好"""
     memories: list[str] = []
     try:
-        from friday.memory.dynamic import search_memory
-        results = search_memory("用户偏好 习惯 设置", limit=5)
-        memories = [r["memory"] for r in results if "memory" in r]
+        import io, sys
+        old_stderr = sys.stderr
+        sys.stderr = io.StringIO()
+        try:
+            from friday.memory.dynamic import search_memory
+            results = search_memory("用户偏好 习惯 设置", limit=5)
+            memories = [r["memory"] for r in results if "memory" in r]
+        finally:
+            sys.stderr = old_stderr
     except Exception:
         pass
     return PromptContext(user_memories=memories)
