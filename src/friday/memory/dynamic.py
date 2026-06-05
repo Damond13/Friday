@@ -50,44 +50,59 @@ def _init_memory() -> Any:
         os.environ.setdefault("HF_HUB_OFFLINE", "1")
         os.environ.setdefault("MEM0_TELEMETRY", "False")
 
-        from mem0 import Memory
+        memory = _create_mem0_instance()
 
-        llm_config = _build_llm_config()
-        config: dict[str, Any] = {
-            "embedder": {
-                "provider": "huggingface",
-                "config": {
-                    "model": "BAAI/bge-small-zh-v1.5",
-                },
-            },
-            "vector_store": {
-                "provider": "chroma",
-                "config": {
-                    "collection_name": "friday_memories",
-                    "path": str(MEMORY_DIR),
-                },
-            },
-        }
-        if llm_config:
-            config["llm"] = llm_config
-
-        MEMORY_DIR.mkdir(parents=True, exist_ok=True)
-        memory = Memory.from_config(config)
-
-        # 用共享实例替换 Mem0 内部模型，省掉一份内存
-        # 注意：embedding_model.model 是 Mem0 (mem0ai>=0.1.0) 未文档化的内部属性，
-        # 若 Mem0 升级后属性路径变更，try/except 会降级为独立模型
+        # Probe: 检测维度不匹配，自动清理重建
         try:
-            from friday.knowledge.embedding import get_shared_model
-            memory.embedding_model.model = get_shared_model()
-            logger.info("已将 Mem0 内部模型替换为共享实例")
-        except Exception as inject_exc:
-            logger.warning("共享模型注入失败，Mem0 使用独立模型: %s", inject_exc)
+            memory.search(query="probe", limit=1, filters={"user_id": "friday_user"})
+        except Exception as probe_exc:
+            if "dimension" not in str(probe_exc).lower():
+                raise
+            logger.warning("Mem0 维度不匹配，清理重建: %s", probe_exc)
+            import shutil
+            shutil.rmtree(MEMORY_DIR, ignore_errors=True)
+            memory = _create_mem0_instance()
 
         return memory
     except Exception as exc:
         logger.warning("Mem0 初始化失败，动态记忆不可用: %s", exc)
         return None
+
+
+def _create_mem0_instance() -> Any:
+    """创建 Mem0 实例并注入共享 embedding 模型"""
+    from mem0 import Memory
+
+    llm_config = _build_llm_config()
+    config: dict[str, Any] = {
+        "embedder": {
+            "provider": "huggingface",
+            "config": {
+                "model": "BAAI/bge-small-zh-v1.5",
+            },
+        },
+        "vector_store": {
+            "provider": "chroma",
+            "config": {
+                "collection_name": "friday_memories",
+                "path": str(MEMORY_DIR),
+            },
+        },
+    }
+    if llm_config:
+        config["llm"] = llm_config
+
+    MEMORY_DIR.mkdir(parents=True, exist_ok=True)
+    memory = Memory.from_config(config)
+
+    try:
+        from friday.knowledge.embedding import get_shared_model
+        memory.embedding_model.model = get_shared_model()
+        logger.info("已将 Mem0 内部模型替换为共享实例")
+    except Exception as inject_exc:
+        logger.warning("共享模型注入失败，Mem0 使用独立模型: %s", inject_exc)
+
+    return memory
 
 
 def _build_llm_config() -> dict[str, Any] | None:

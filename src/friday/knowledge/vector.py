@@ -27,11 +27,24 @@ def _get_client(chroma_dir: Path | None = None) -> chromadb.ClientAPI:
 
 
 def _get_collection(client: chromadb.ClientAPI) -> chromadb.Collection:
-    """获取或创建 collection"""
-    from friday.knowledge.embedding import embed_texts
-    return client.get_or_create_collection(
+    """获取或创建 collection，维度不匹配时自动重建"""
+    from friday.knowledge.embedding import get_embedding_dim
+    expected_dim = get_embedding_dim()
+    collection = client.get_or_create_collection(
         name=_COLLECTION_NAME,
-        metadata={"hnsw:space": "cosine"},
+        metadata={"hnsw:space": "cosine", "embedding_dim": expected_dim},
+    )
+    stored_dim = collection.metadata.get("embedding_dim")
+    if stored_dim == expected_dim:
+        return collection
+    if stored_dim is not None:
+        logger.warning("Collection 维度不匹配 (存储=%s, 当前=%d)，自动重建", stored_dim, expected_dim)
+    else:
+        logger.warning("Collection 无维度标记，自动重建")
+    client.delete_collection(_COLLECTION_NAME)
+    return client.create_collection(
+        name=_COLLECTION_NAME,
+        metadata={"hnsw:space": "cosine", "embedding_dim": expected_dim},
     )
 
 
