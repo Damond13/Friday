@@ -34,6 +34,7 @@ friday/
 │   └── memory/                  # SDD 过程记忆
 ├── .friday-memory/              # Mem0 动态记忆（ChromaDB）
 ├── specs/                       # 功能规格（SDD 产出）
+├── bugs/                        # 缺陷报告（bugfix 产出）
 ├── src/friday/                  # 源代码
 │   ├── cli/                     # 交互壳
 │   ├── knowledge/               # 知识库
@@ -130,12 +131,18 @@ knowledge/ executor/ instruction/
 - 所有外部调用走 adapter 层，不直接依赖第三方 SDK
 - 测试覆盖核心逻辑，CLI 层不写测试
 - 所有代码通过 `uv run` 执行，测试用 pytest
+- **目录结构清晰** — 新增文件必须归入合适的目录，保持项目结构清晰、分类明确。禁止在项目根目录随意放置文件；如无合适目录，先新建再放置
+- **测试同步维护** — 修改模块代码时，必须同步检查该模块的自动化测试是否需要更新。包括：新增功能补测试、删除功能删测试、接口变更改测试
+- **工具可复用** — 新增的脚本/工具必须设计为可复用、可重复执行，不能是一次性产物。要求：命令行可调用（带参数）、输出结构化、纳入 `scripts/` 目录统一管理
+- **禁止自动跑全量测试** — SDD 工作流中所有 Agent 不得自动运行 `pytest tests/ -v`，只有用户明确要求时才执行
+- **提交不加 Co-Authored-By 署名** — git commit message 不添加 Claude 协作署名
 
 ## 数据存储
 
 - 运行时数据：`~/.friday/`（config.yaml, knowledge/, instructions/, sessions/, indexes/, logs/）
 - 项目内数据：`.friday-memory/`（Mem0 ChromaDB）
 - 工程化数据：`.specify/`（spec-kit SDD 工作流）
+- 缺陷数据：`bugs/`（缺陷修复流程）
 
 ## 开发工作流
 
@@ -152,6 +159,15 @@ specify → clarify → plan → tasks → implement → review
                                             推送远程 → 删除功能分支
 ```
 
+### 工作流各阶段职责
+
+- **specify** — 根据用户描述生成功能规格文档（spec.md）
+- **clarify** — 大模型读取 spec，识别疑问点和模糊之处，逐一向用户提问，用户确认或澄清后回写到 spec
+- **plan** — 基于确认后的 spec 生成技术实施方案
+- **tasks** — 将方案拆解为可执行任务，支持并行分组
+- **implement** — 按任务顺序/并行执行实现
+- **review** — 独立子 Agent 审核代码，确认通过后合并
+
 ### 工作流规则
 
 1. **文档生成前确认** — spec/plan/tasks/research 等文档生成前，必须展示草稿并等用户确认后再写入
@@ -161,3 +177,34 @@ specify → clarify → plan → tasks → implement → review
 5. **审核角色选择** — 使用 `superpowers:code-reviewer` 子 Agent 类型执行审核，在 prompt 中附加 `.claude/agents/reviewer.md` 的检查项作为额外约束
 6. **合并清理流程** — review APPROVED 后：合并到 main → 推送远程 → 删除功能分支
 7. **优先借鉴开源方案** — 开发新功能前，必须先调研开源项目（通过 WebSearch / WebFetch），找到可借鉴的方案或可直接复用的库，避免重复造轮子。调研结果写入 spec 的"开源借鉴"章节
+
+## 缺陷修复流程
+
+使用 bugfix 工作流，解决"盲目修补"和"头痛医头"的问题：
+
+```
+report → diagnose → fixplan → fix → verify
+```
+
+### 缺陷修复各阶段职责
+
+- **report** — 采集缺陷现象、环境信息、复现步骤（`/bugfix.report`）
+- **diagnose** — 根因诊断，强制调研开源方案，判断代码级还是方案级问题（`/bugfix.diagnose`）
+- **fixplan** — 设计修复方案，面向长期影响和可扩展性，非临时补丁（`/bugfix.fixplan`）
+- **fix** — 按 fixplan 执行修复，不扩大范围（`/bugfix.fix`）
+- **verify** — 验证修复有效，检查无回归（`/bugfix.verify`）
+
+### 缺陷修复规则
+
+1. **先诊断再动手** — 禁止跳过 diagnose 直接改代码
+2. **调研必须做** — diagnose 阶段必须搜索开源社区的同类问题和解决方案
+3. **允许换方案** — 如果 diagnose 判断为方案级问题，转入 SDD 新功能流程，不要在错误方案上修补
+4. **面向长期** — fixplan 必须评估改动对可扩展性和未来功能的影响
+5. **范围不蔓延** — fix 严格按 fixplan 执行，不加塞不扩大
+6. **诚实验证** — 无法复现的 bug 标注验证局限性，不声称已验证
+7. **每阶段等确认** — 和 SDD 流程一样，每个阶段产出后暂停等用户确认
+
+### 缺陷数据存储
+
+- 缺陷报告：`bugs/<编号>-<短名>/`（bug-report.md, diagnosis.md, fixplan.md, verify-report.md）
+- 指针文件：`.specify/bugfix.json`
