@@ -69,6 +69,8 @@ def run_repl() -> None:
     show_welcome()
     from friday.knowledge.watcher import start_watcher, stop_watcher
     start_watcher()
+    from friday.memory.dynamic import _get_memory
+    _get_memory()
     prompt = PromptSession(
         "Friday> ", history=FileHistory(str(session_mod.SESSIONS_DIR.parent / "history")),
     )
