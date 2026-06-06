@@ -30,12 +30,17 @@ You **MUST** consider the user input before proceeding (if not empty).
    - 优先考虑让代码更健康的改法，而非最小补丁
    - 如果诊断结论是方案级问题，建议转入 SDD 流程而非在本流程中强行修复
 
-5. **明确边界**：
+5. **测试更新评估**：
+   - 检查改动涉及的模块是否有对应的自动化测试文件
+   - 如果有：在改动清单中列出需要更新的测试文件和新增的测试用例
+   - 如果没有：明确标注"该模块暂无自动化测试"，评估是否需要新建
+
+6. **明确边界**：
    - 列出要改的文件和改动内容
    - **同样列出不改的部分**，防止范围蔓延
    - 如果修复需要引入新依赖或重构模块结构，明确说明原因
 
-6. **生成 fixplan.md**：使用 `.specify/templates/fixplan-template.md` 模板
+7. **生成 fixplan.md**：使用 `.specify/templates/fixplan-template.md` 模板
 
 7. **展示草稿**：将修复方案展示给用户，等待确认
 
@@ -51,6 +56,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 ## Done When
 
 - [ ] 长期影响评估完成（可扩展性、未来功能、同类问题预防）
+- [ ] 测试更新评估已完成
 - [ ] 修复方案已设计，包含具体文件和改动内容
 - [ ] 不改动的部分已明确列出
 - [ ] `fixplan.md` 已写入并经用户确认

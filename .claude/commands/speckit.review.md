@@ -51,9 +51,10 @@ You **MUST** consider the user input before proceeding (if not empty).
    | 6 | Type annotations | All functions have complete type annotations |
    | 7 | Adapter layer | All LLM calls go through `llm/adapter.py` |
    | 8 | Storage layer | All data ops go through module storage layer |
-   | 9 | Test coverage | Critical paths have tests |
-   | 10 | Security | No injection, path traversal risks |
-   | 11 | No over-engineering | No unnecessary abstractions |
+   | 9 | Test sync | Modified modules have updated tests (per CLAUDE.md "测试同步维护") |
+   | 10 | Test coverage | Critical paths have tests |
+   | 11 | Security | No injection, path traversal risks |
+   | 12 | No over-engineering | No unnecessary abstractions |
    | 12 | No direct SDK calls | All external calls through adapter layer |
 
 5. **Write review report** to `REVIEW_FILE`:
@@ -74,6 +75,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    | # | Check | Result | Notes |
    |---|-------|--------|-------|
    | 1 | Spec compliance | ✅/❌ | [details] |
+   | 2 | Constitution compliance | ✅/❌ | [details] |
    | ... | ... | ... | ... |
 
    ## Findings

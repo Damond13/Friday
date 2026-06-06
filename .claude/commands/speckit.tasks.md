@@ -138,7 +138,7 @@ The tasks.md should be immediately executable - each task must be specific enoug
 
 **CRITICAL**: Tasks MUST be organized by user story to enable independent implementation and testing.
 
-**Tests are OPTIONAL**: Only generate test tasks if explicitly requested in the feature specification or if user requests TDD approach.
+**Tests are REQUIRED by risk assessment**: Every user story phase MUST evaluate whether test tasks are needed. High-risk features (data storage, LLM calls, retrieval logic, security) MUST include test tasks. Low-risk features (config changes, simple UI tweaks) may skip tests with explicit justification. When tests are needed, include both the test task and the test type (unit/integration) in the task description.
 
 ### Checklist Format (REQUIRED)
 
@@ -182,7 +182,7 @@ Every task MUST strictly follow this format:
      - Models needed for that story
      - Services needed for that story
      - Interfaces/UI needed for that story
-     - If tests requested: Tests specific to that story
+     - Tests specific to that story (update existing or create new)
    - Mark story dependencies (most stories should be independent)
 
 2. **From Contracts**:
@@ -220,7 +220,7 @@ When generating tasks, analyze file paths and dependencies to assign [G{n}] grou
 - **Phase 1**: Setup (project initialization)
 - **Phase 2**: Foundational (blocking prerequisites - MUST complete before user stories)
 - **Phase 3+**: User Stories in priority order (P1, P2, P3...)
-  - Within each story: Tests (if requested) → Models → Services → Endpoints → Integration
+  - Within each story: Tests → Models → Services → Endpoints → Integration
   - Each phase should be a complete, independently testable increment
 - **Final Phase**: Polish & Cross-Cutting Concerns
 

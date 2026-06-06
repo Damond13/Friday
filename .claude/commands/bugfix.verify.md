@@ -34,14 +34,20 @@ You **MUST** consider the user input before proceeding (if not empty).
    - 是否引入了新的安全隐患
    - 是否有冗余代码（修复过程中的临时代码是否清理干净）
 
-6. **生成验证报告**：在 `BUG_DIR/verify-report.md` 中记录：
+6. **测试更新确认**：
+   - 确认 fixplan 中标注的测试更新已在 fix 阶段完成
+   - 如果 fixplan 标注"暂无自动化测试"，确认跳过合理
+   - 如发现测试遗漏，在验证报告中标注
+
+7. **生成验证报告**：在 `BUG_DIR/verify-report.md` 中记录：
    - 验证环境
    - 修复有效性结论
    - 回归检查结论
+   - 测试更新确认
    - 未验证项（如有）
    - 后续建议（如需要特定平台验证）
 
-7. **更新 bug-report 状态**：将 bug-report.md 状态更新为"已验证"
+8. **更新 bug-report 状态**：将 bug-report.md 状态更新为"已验证"
 
 ## Key Rules
 
@@ -54,5 +60,6 @@ You **MUST** consider the user input before proceeding (if not empty).
 - [ ] 修复有效性已验证（或标注了验证局限性）
 - [ ] 回归检查已完成
 - [ ] 代码质量检查已完成
+- [ ] 测试更新已确认
 - [ ] `verify-report.md` 已写入
 - [ ] 结果已报告给用户

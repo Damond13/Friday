@@ -273,6 +273,8 @@ Report final status with summary of completed work:
 ## Done When
 
 - [ ] All tasks in tasks.md completed and marked `[X]`
+- [ ] Automated tests for modified modules have been updated (per CLAUDE.md "测试同步维护")
+- [ ] After writing test code, run the specific module's tests to confirm they pass (e.g. `pytest tests/test_xxx.py -v`). Do NOT run full test suite.
 - [ ] Implementation validated against specification, plan, and test coverage
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
 - [ ] Completion reported to user with execution mode, task summary, and files modified
