@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 
 from friday.knowledge.fts import init_fts, insert as fts_insert, delete as fts_delete
-from friday.knowledge.fts import search as fts_search
+from friday.knowledge.fts import search as fts_search, get_all_index_mtimes
 from friday.knowledge.store import (
     Note, SearchResult, create_note_file, read_note_file,
     delete_note_file, list_note_files, generate_note_id, now_iso,
@@ -97,7 +97,8 @@ def rag_query(query: str, limit: int = 5) -> str:
 
 def index_note(note: Note, file_path: str) -> None:
     """为笔记建立 FTS + 向量索引"""
-    fts_insert(get_fts(), note.id, note.title, note.content, note.tags, file_path)
+    mtime = Path(file_path).stat().st_mtime if Path(file_path).exists() else 0.0
+    fts_insert(get_fts(), note.id, note.title, note.content, note.tags, file_path, mtime)
     try:
         ensure_vector()
         vector.upsert(note.id, note.content, note.title, note.tags, file_path)
@@ -113,6 +114,11 @@ def reindex_note(note_id: str) -> None:
         return
     note = read_note_file(path)
     index_note(note, str(path))
+
+
+def get_index_mtimes() -> dict[str, float]:
+    """返回所有已索引笔记的 {note_id: mtime}"""
+    return get_all_index_mtimes(get_fts())
 
 
 def _deduplicate(results: list[SearchResult]) -> list[SearchResult]:

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from friday.knowledge.fts import init_fts, insert, delete, search
+from friday.knowledge.fts import init_fts, insert, delete, search, get_all_index_mtimes
 import friday.knowledge.fts as fts_mod
 
 
@@ -50,3 +50,22 @@ class TestFTS:
         insert(fts_conn, "n6", "标签测试", "内容", tags=["python", "ai"])
         results = search(fts_conn, "python")
         assert len(results) >= 1
+
+
+class TestGetAllIndexMtimes:
+    def test_empty_db(self, fts_conn: sqlite3.Connection) -> None:
+        assert get_all_index_mtimes(fts_conn) == {}
+
+    def test_returns_stored_mtimes(self, fts_conn: sqlite3.Connection) -> None:
+        insert(fts_conn, "a1", "标题", "内容", mtime=1000.5)
+        insert(fts_conn, "a2", "标题2", "内容2", mtime=2000.0)
+        result = get_all_index_mtimes(fts_conn)
+        assert result == {"a1": 1000.5, "a2": 2000.0}
+
+    def test_after_delete(self, fts_conn: sqlite3.Connection) -> None:
+        insert(fts_conn, "b1", "标题", "内容", mtime=500.0)
+        insert(fts_conn, "b2", "标题2", "内容2", mtime=600.0)
+        delete(fts_conn, "b1")
+        result = get_all_index_mtimes(fts_conn)
+        assert "b1" not in result
+        assert result["b2"] == 600.0

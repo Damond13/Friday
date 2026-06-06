@@ -6,7 +6,7 @@ from pathlib import Path
 from watchdog.events import FileSystemEventHandler, FileCreatedEvent, FileModifiedEvent, FileDeletedEvent
 from watchdog.observers import Observer
 
-from friday.knowledge.store import NOTES_DIR, read_note_file, validate_note_id
+from friday.knowledge.store import NOTES_DIR, read_note_file, validate_note_id, list_note_files
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,38 @@ class _KnowledgeHandler(FileSystemEventHandler):
 def _is_supported(path: Path) -> bool:
     """判断文件是否为支持的类型"""
     return path.suffix.lower() in _SUPPORTED_EXTENSIONS and not path.name.startswith(".")
+
+
+def reconcile() -> None:
+    """启动校准：对比目录文件与已有索引，处理新增/修改/删除差异"""
+    from friday.knowledge.adapter import get_index_mtimes, delete_note
+    try:
+        indexed = get_index_mtimes()
+    except Exception:
+        logger.warning("启动校准：读取索引失败，跳过")
+        return
+    disk_files: dict[str, float] = {}
+    for path in list_note_files():
+        note_id = path.stem
+        try:
+            disk_files[note_id] = path.stat().st_mtime
+        except OSError:
+            continue
+    for note_id, mtime in disk_files.items():
+        path = NOTES_DIR / f"{note_id}.md"
+        if note_id not in indexed:
+            logger.info(f"启动校准：新增文件 {note_id}")
+            _index_file(path)
+        elif abs(mtime - indexed[note_id]) > 0.001:
+            logger.info(f"启动校准：文件已修改 {note_id}")
+            _reindex_file(path)
+    for note_id in indexed:
+        if note_id not in disk_files:
+            logger.info(f"启动校准：清理孤立索引 {note_id}")
+            try:
+                delete_note(note_id)
+            except Exception as e:
+                logger.warning(f"启动校准：清理失败 {note_id}: {e}")
 
 
 def _index_file(path: Path) -> None:
@@ -90,6 +122,7 @@ def start_watcher(directory: Path | None = None) -> None:
         return
     watch_dir = directory or NOTES_DIR
     watch_dir.mkdir(parents=True, exist_ok=True)
+    reconcile()
     _observer = Observer()
     _observer.schedule(_KnowledgeHandler(), str(watch_dir), recursive=True)
     _observer.start()

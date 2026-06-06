@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS notes_fts (
     title TEXT,
     content TEXT,
     tags TEXT,
-    file_path TEXT
+    file_path TEXT,
+    mtime REAL DEFAULT 0
 );
 """
 
@@ -64,6 +65,10 @@ def _init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(_TRIGGER_INSERT)
     conn.executescript(_TRIGGER_DELETE)
     conn.executescript(_TRIGGER_UPDATE)
+    try:
+        conn.execute("ALTER TABLE notes_fts ADD COLUMN mtime REAL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
 
 
@@ -80,16 +85,17 @@ def init_fts(db_path: Path | None = None) -> sqlite3.Connection:
 
 
 def insert(conn: sqlite3.Connection, note_id: str, title: str, content: str,
-           tags: list[str] | None = None, file_path: str = "") -> None:
+           tags: list[str] | None = None, file_path: str = "",
+           mtime: float = 0.0) -> None:
     """插入或更新索引条目"""
     conn.execute("DELETE FROM notes_fts WHERE note_id = ?", (note_id,))
     tokenized_title = _tokenize(title)
     tokenized_content = _tokenize(content)
     tokenized_tags = _tokenize(" ".join(tags)) if tags else ""
     conn.execute(
-        "INSERT INTO notes_fts (note_id, title, content, tags, file_path) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (note_id, tokenized_title, tokenized_content, tokenized_tags, file_path),
+        "INSERT INTO notes_fts (note_id, title, content, tags, file_path, mtime) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (note_id, tokenized_title, tokenized_content, tokenized_tags, file_path, mtime),
     )
     conn.commit()
 
@@ -119,6 +125,12 @@ def search(conn: sqlite3.Connection, query: str, limit: int = 5) -> list[SearchR
         )
         for r in rows
     ]
+
+
+def get_all_index_mtimes(conn: sqlite3.Connection) -> dict[str, float]:
+    """返回所有已索引笔记的 {note_id: mtime}"""
+    rows = conn.execute("SELECT note_id, mtime FROM notes_fts").fetchall()
+    return {r[0]: r[1] or 0.0 for r in rows}
 
 
 def _extract_snippet(content: str, query: str, max_len: int = 100) -> str:

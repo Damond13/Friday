@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 
 from watchdog.events import FileCreatedEvent, FileModifiedEvent, FileDeletedEvent
 
-from friday.knowledge.watcher import _KnowledgeHandler, _is_supported
+from friday.knowledge.watcher import _KnowledgeHandler, _is_supported, reconcile
 
 
 class TestIsSupported:
@@ -49,3 +49,44 @@ class TestKnowledgeHandler:
         with patch("friday.knowledge.watcher._remove_index") as mock_remove:
             self.handler.on_deleted(event)
         mock_remove.assert_called_once_with(Path("/tmp/notes/test.md"))
+
+
+class TestReconcile:
+    def test_no_diff_no_action(self) -> None:
+        mock_path = MagicMock()
+        mock_path.stem = "n1"
+        mock_path.stat.return_value.st_mtime = 100.0
+        with patch("friday.knowledge.adapter.get_index_mtimes", return_value={"n1": 100.0}), \
+             patch("friday.knowledge.watcher.list_note_files", return_value=[mock_path]), \
+             patch("friday.knowledge.watcher._index_file") as mock_idx, \
+             patch("friday.knowledge.watcher._reindex_file") as mock_reidx:
+            reconcile()
+            mock_idx.assert_not_called()
+            mock_reidx.assert_not_called()
+
+    def test_new_file_gets_indexed(self) -> None:
+        mock_path = MagicMock()
+        mock_path.stem = "new_note"
+        mock_path.stat.return_value.st_mtime = 500.0
+        with patch("friday.knowledge.adapter.get_index_mtimes", return_value={}), \
+             patch("friday.knowledge.watcher.list_note_files", return_value=[mock_path]), \
+             patch("friday.knowledge.watcher._index_file") as mock_idx:
+            reconcile()
+            mock_idx.assert_called_once()
+
+    def test_modified_file_gets_reindexed(self) -> None:
+        mock_path = MagicMock()
+        mock_path.stem = "n1"
+        mock_path.stat.return_value.st_mtime = 200.0
+        with patch("friday.knowledge.adapter.get_index_mtimes", return_value={"n1": 100.0}), \
+             patch("friday.knowledge.watcher.list_note_files", return_value=[mock_path]), \
+             patch("friday.knowledge.watcher._reindex_file") as mock_reidx:
+            reconcile()
+            mock_reidx.assert_called_once()
+
+    def test_deleted_file_gets_cleaned(self) -> None:
+        with patch("friday.knowledge.adapter.get_index_mtimes", return_value={"orphan": 50.0}), \
+             patch("friday.knowledge.watcher.list_note_files", return_value=[]), \
+             patch("friday.knowledge.adapter.delete_note") as mock_del:
+            reconcile()
+            mock_del.assert_called_once_with("orphan")
