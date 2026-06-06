@@ -9,7 +9,7 @@ from friday.config import CONFIG_DIR, get_llm_config
 
 logger = logging.getLogger(__name__)
 
-MEMORY_DIR = CONFIG_DIR.parent / ".friday-memory"
+MEMORY_DIR = CONFIG_DIR / "memory"
 
 _memory_instance: Any = None
 
@@ -28,7 +28,7 @@ class MemoryItem:
 class MemorySearchResult:
     """统一检索结果"""
 
-    source: str  # "dynamic" / "files"
+    source: str  # "dynamic"
     content: str
     score: float
     metadata: dict[str, Any] = field(default_factory=dict)

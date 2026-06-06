@@ -8,7 +8,7 @@ Friday 是一个本地 CLI 工具，能记住你教它的知识，学会你教�
 - Python 3.13 + Typer + Rich
 - LLM: 智谱 API + DeepSeek API（可切换）
 - 存储: SQLite + ChromaDB + 本地文件系统
-- 记忆: Mem0（动态）+ 文件记忆（结构化）
+- 记忆: Mem0（动态自动记忆）
 - 开发: Claude Code + spec-kit SDD 工作流
 
 ## 架构
@@ -18,7 +18,7 @@ Friday 是一个本地 CLI 工具，能记住你教它的知识，学会你教�
                             ├── 知识库(FTS5+ChromaDB+RAG)
                             ├── 执行器(Shell+文件)
                             ├── 指令系统(YAML)
-                            └── 记忆系统(Mem0+文件)
+                            └── 记忆系统(Mem0动态记忆)
 ```
 
 ## 文件结构
@@ -32,7 +32,6 @@ friday/
 │   └── agents/                  # 角色定义（开发者/审核者）
 ├── .specify/                    # Spec-Kit 配置和规格
 │   └── memory/                  # SDD 过程记忆
-├── .friday-memory/              # Mem0 动态记忆（ChromaDB）
 ├── specs/                       # 功能规格（SDD 产出）
 ├── bugs/                        # 缺陷报告（bugfix 产出）
 ├── src/friday/                  # 源代码
@@ -40,7 +39,7 @@ friday/
 │   ├── knowledge/               # 知识库
 │   ├── executor/                # 执行器
 │   ├── instruction/             # 指令学习
-│   ├── memory/                  # 双层记忆系统
+│   ├── memory/                  # 动态记忆系统（Mem0）
 │   ├── llm/                     # LLM 调用层
 │   └── config.py                # 全局配置
 ├── tests/
@@ -58,6 +57,7 @@ friday/
 ├── instructions/                # 学到的指令（YAML）
 ├── sessions/                    # 会话历史
 ├── indexes/                     # 检索索引
+├── memory/                      # Mem0 动态记忆（ChromaDB）
 └── logs/                        # 运行日志
 ```
 
@@ -88,9 +88,9 @@ friday/
 - YAML 配置文件存储，可直接编辑
 - 支持类型：单步指令 / 多步工作流 / 条件分支
 
-### 双层记忆系统 (memory/)
-- **Mem0 动态记忆（自动）** — 对话中自动提取，语义检索，存于 `.friday-memory/`
-- **结构化文件记忆（手动+Git管理）** — constitution.md / decisions.md / lessons-learned.md
+### 动态记忆系统 (memory/)
+- **Mem0 动态记忆（自动）** — 对话中自动提取用户偏好和习惯，语义检索，存于 `~/.friday/memory/`
+- 每次用户发消息时，自动基于当前消息内容检索相关记忆并注入对话上下文
 
 ### LLM 调用层 (llm/)
 - 多模型可切换（智谱 GLM / DeepSeek）
@@ -109,9 +109,9 @@ friday/
 knowledge/ executor/ instruction/
 (知识检索) (执行命令) (指令匹配)
     ↓    ↓    ↓
-    memory/（双层记忆）
+    memory/（动态记忆）
     ↑         ↑
-    └─ ChromaDB + SQLite ─┘
+    └─ Mem0 + ChromaDB ─┘
 ```
 
 ## CodeGraph 提醒
@@ -140,8 +140,7 @@ knowledge/ executor/ instruction/
 
 ## 数据存储
 
-- 运行时数据：`~/.friday/`（config.yaml, knowledge/, instructions/, sessions/, indexes/, logs/）
-- 项目内数据：`.friday-memory/`（Mem0 ChromaDB）
+- 运行时数据：`~/.friday/`（config.yaml, knowledge/, instructions/, sessions/, indexes/, memory/, logs/）
 - 工程化数据：`.specify/`（spec-kit SDD 工作流）
 - 缺陷数据：`bugs/`（缺陷修复流程）
 
