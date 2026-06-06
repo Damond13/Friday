@@ -140,6 +140,12 @@ The tasks.md should be immediately executable - each task must be specific enoug
 
 **Tests are REQUIRED by risk assessment**: Every user story phase MUST evaluate whether test tasks are needed. High-risk features (data storage, LLM calls, retrieval logic, security) MUST include test tasks. Low-risk features (config changes, simple UI tweaks) may skip tests with explicit justification. When tests are needed, include both the test task and the test type (unit/integration) in the task description.
 
+**Test tasks MUST be specific**: Before generating test tasks, scan existing test files (`find tests/ -name "*.py" | grep -v __pycache__`) to identify what already exists. Each test task MUST specify:
+1. The exact test file path (existing to update, or new to create)
+2. What changes are needed (delete entire file / update specific test classes / add new test cases)
+3. What specific scenarios to test
+Do NOT write vague descriptions like "add tests" or "update tests".
+
 ### Checklist Format (REQUIRED)
 
 Every task MUST strictly follow this format:

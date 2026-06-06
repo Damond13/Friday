@@ -37,7 +37,9 @@ You **MUST** consider the user input before proceeding (if not empty).
 4. **同步更新测试**（必做步骤）：
    - 根据 fixplan 中的测试更新评估，同步修改或新增对应的测试代码
    - 如果 fixplan 标注"该模块暂无自动化测试"，跳过此步
-   - 如果 fixplan 列出了需要更新的测试文件，按清单执行
+   - 如果 fixplan 列出了需要删除的测试文件或测试类，执行删除
+   - 如果 fixplan 列出了需要更新的测试文件，按清单逐项执行（明确哪个文件、哪个测试类/方法要改）
+   - 写完测试后运行该模块测试确认通过（如 `pytest tests/test_xxx.py -v`）
 
 5. **检查改动范围**：
    - 确认实际改动没有超出 fixplan 的范围

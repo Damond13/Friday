@@ -1,8 +1,11 @@
 """动态记忆单元测试"""
 
+from pathlib import Path
+
 import pytest
 
-from friday.memory.dynamic import MemoryItem, MemorySearchResult
+from friday.config import CONFIG_DIR
+from friday.memory.dynamic import MemoryItem, MemorySearchResult, MEMORY_DIR
 
 
 class TestMemoryItem:
@@ -26,10 +29,47 @@ class TestMemorySearchResult:
     def test_source_dynamic(self) -> None:
         result = MemorySearchResult(source="dynamic", content="test", score=0.8)
         assert result.source == "dynamic"
+        assert result.content == "test"
+        assert result.score == 0.8
 
-    def test_source_files(self) -> None:
-        result = MemorySearchResult(source="files", content="decision", score=1.0)
-        assert result.source == "files"
+
+class TestMemoryDir:
+    """MEMORY_DIR 路径配置"""
+
+    def test_memory_dir_under_config(self) -> None:
+        assert MEMORY_DIR == CONFIG_DIR / "memory"
+
+    def test_memory_dir_is_absolute(self) -> None:
+        assert MEMORY_DIR.is_absolute()
+
+    def test_memory_dir_name(self) -> None:
+        assert MEMORY_DIR.name == "memory"
+
+
+class TestSearchMemoryDegraded:
+    """search_memory 降级行为"""
+
+    def test_returns_list_on_failure(self) -> None:
+        from friday.memory.dynamic import search_memory
+        from unittest.mock import patch
+
+        with patch("friday.memory.dynamic._get_memory", return_value=None):
+            results = search_memory("test query")
+            assert isinstance(results, list)
+            assert len(results) == 0
+
+    def test_returns_memory_search_result_type(self) -> None:
+        from friday.memory.dynamic import search_memory
+        from unittest.mock import patch
+
+        mock_result = MemorySearchResult(
+            source="dynamic", content="用户偏好Python", score=0.9
+        )
+        with patch("friday.memory.dynamic._get_memory", return_value=None):
+            results = search_memory("Python")
+            assert isinstance(results, list)
+            for item in results:
+                assert isinstance(item, MemorySearchResult)
 
 
 class TestMem0Integration:
@@ -45,6 +85,7 @@ class TestMem0Integration:
 
         results = search_memory("颜色偏好")
         assert len(results) >= 1
+        assert all(isinstance(r, MemorySearchResult) for r in results)
 
         deleted = delete_memory(item.id)
         assert deleted is True

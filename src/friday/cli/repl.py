@@ -115,21 +115,20 @@ def _agent_reply(session: Session) -> None:
 
 
 def _build_context(session: Session) -> PromptContext:
-    """组装 Prompt 上下文：从记忆系统加载用户偏好"""
+    """组装 Prompt 上下文：基于用户当前消息检索相关记忆"""
     memories: list[str] = []
     try:
-        import io, sys
-        old_stderr = sys.stderr
-        sys.stderr = io.StringIO()
-        try:
-            from friday.memory.dynamic import search_memory
-            results = search_memory("用户偏好 习惯 设置", limit=5)
-            memories = [r["memory"] for r in results if "memory" in r]
-        finally:
-            sys.stderr = old_stderr
+        from friday.memory.adapter import search_memories
+        query = session.messages[-1].content if session.messages else ""
+        if not query.strip():
+            return PromptContext(user_memories=[])
+        results = search_memories(query, limit=5)
+        for r in results:
+            if r.score >= 0.3:
+                memories.append(r.content)
     except Exception:
         pass
-    return PromptContext(user_memories=memories)
+    return PromptContext(user_memories=memories[:5])
 
 
 def _setup_safety_callbacks() -> None:
