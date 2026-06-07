@@ -71,7 +71,12 @@ def show_search_results(results: list) -> None:
 def show_assistant_separator() -> None:
     """显示助手回复前的分隔线"""
     console.print(Rule(style="dim"))
+
+
+def show_assistant_reply(reply: str) -> None:
+    """显示助手回复内容（带 Friday: 前缀）"""
     console.print("[bold cyan]Friday:[/bold cyan] ", end="")
+    console.print(reply)
 
 
 def show_tool_call(name: str, arguments: dict) -> None:
