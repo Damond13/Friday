@@ -8,6 +8,7 @@ from friday.cli import slash
 from friday.cli.display import (
     console,
     show_assistant_separator,
+    show_assistant_reply,
     show_config_guide,
     show_welcome,
     show_error,
@@ -102,14 +103,15 @@ def _agent_reply(session: Session) -> None:
     show_assistant_separator()
     messages = session.to_messages()
     context = _build_context(session)
-    result = run_agent_loop(
-        messages,
-        context=context,
-        on_tool_call=show_tool_call,
-        on_tool_result=show_tool_result,
-    )
+    with console.status("[bold cyan]Friday 正在思考...[/bold cyan]"):
+        result = run_agent_loop(
+            messages,
+            context=context,
+            on_tool_call=show_tool_call,
+            on_tool_result=show_tool_result,
+        )
     if result.reply:
-        console.print(result.reply)
+        show_assistant_reply(result.reply)
     console.print()
     console.print()
     if result.reply:
