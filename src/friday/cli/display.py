@@ -79,16 +79,25 @@ def show_assistant_reply(reply: str) -> None:
     console.print(reply)
 
 
+def _truncate_repr(value: str, max_len: int = 80) -> str:
+    """截断值的 repr 表示到指定长度"""
+    r = repr(value)
+    if len(r) <= max_len:
+        return r
+    return r[: max_len - 3] + "..."
+
+
 def show_tool_call(name: str, arguments: dict) -> None:
     """显示正在执行的工具调用"""
-    args_str = " ".join(f"{k}={v!r}" for k, v in arguments.items())
+    args_str = " ".join(f"{k}={_truncate_repr(v)}" for k, v in arguments.items())
     console.print(f"  [bold yellow]🔧 {name}[/bold yellow] [dim]{args_str}[/dim]")
 
 
 def show_tool_result(success: bool, output: str) -> None:
     """显示工具执行结果摘要"""
     icon = "[green]✓[/green]" if success else "[red]✗[/red]"
-    preview = output[:200].replace("\n", " ")
-    if len(output) > 200:
-        preview += "..."
-    console.print(f"  {icon} [dim]{preview}[/dim]")
+    lines = output.split("\n")
+    truncated = "\n".join(lines[:3])[:200]
+    if len(lines) > 3 or len(output) > 200:
+        truncated += "..."
+    console.print(f"  {icon} [dim]{truncated}[/dim]")
