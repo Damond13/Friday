@@ -1,9 +1,12 @@
 """FTS5 全文索引管理 — SQLite + jieba 中文分词"""
 
+import logging
 import sqlite3
 from pathlib import Path
 
 import jieba
+
+jieba.setLogLevel(logging.WARNING)
 
 from friday.knowledge.store import SearchResult
 

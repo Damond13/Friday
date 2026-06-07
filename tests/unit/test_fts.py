@@ -1,8 +1,10 @@
 """fts.py 单元测试 — FTS5 全文索引"""
 
+import logging
 import sqlite3
 from pathlib import Path
 
+import jieba
 import pytest
 
 from friday.knowledge.fts import init_fts, insert, delete, search, get_all_index_mtimes
@@ -69,3 +71,9 @@ class TestGetAllIndexMtimes:
         result = get_all_index_mtimes(fts_conn)
         assert "b1" not in result
         assert result["b2"] == 600.0
+
+
+class TestJiebaLogLevel:
+    def test_jieba_log_level_suppressed(self) -> None:
+        """导入 fts 模块后 jieba 日志级别应为 WARNING"""
+        assert jieba.default_logger.level >= logging.WARNING
