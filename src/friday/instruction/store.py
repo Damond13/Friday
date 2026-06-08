@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 INSTRUCTIONS_DIR = CONFIG_DIR / "instructions"
 
 
-def _slugify(trigger: str) -> str:
+def slugify(trigger: str) -> str:
     """将触发词转为文件名：小写 + 连字符"""
     slug = trigger.strip().lower()
     slug = re.sub(r"[\s]+", "-", slug)
@@ -36,7 +36,7 @@ def ensure_dir() -> None:
 def save(instruction: Instruction) -> Path:
     """保存指令到 YAML 文件，返回文件路径"""
     ensure_dir()
-    slug = _slugify(instruction.trigger)
+    slug = slugify(instruction.trigger)
     path = _yaml_path(slug)
     with open(path, "w", encoding="utf-8") as f:
         yaml.dump(

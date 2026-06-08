@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS notes_fts (
     title TEXT,
     content TEXT,
     tags TEXT,
+    type TEXT DEFAULT 'note',
     file_path TEXT,
     mtime REAL DEFAULT 0
 );
@@ -25,29 +26,29 @@ CREATE TABLE IF NOT EXISTS notes_fts (
 
 _CREATE_FTS_SQL = """
 CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts_index
-USING fts5(note_id, title, content, tags, file_path, content=notes_fts, content_rowid=rowid);
+USING fts5(note_id, title, content, tags, type, file_path, content=notes_fts, content_rowid=rowid);
 """
 
 _TRIGGER_INSERT = """
 CREATE TRIGGER IF NOT EXISTS notes_fts_ai AFTER INSERT ON notes_fts BEGIN
-    INSERT INTO notes_fts_index(rowid, note_id, title, content, tags, file_path)
-    VALUES (new.rowid, new.note_id, new.title, new.content, new.tags, new.file_path);
+    INSERT INTO notes_fts_index(rowid, note_id, title, content, tags, type, file_path)
+    VALUES (new.rowid, new.note_id, new.title, new.content, new.tags, new.type, new.file_path);
 END;
 """
 
 _TRIGGER_DELETE = """
 CREATE TRIGGER IF NOT EXISTS notes_fts_ad AFTER DELETE ON notes_fts BEGIN
-    INSERT INTO notes_fts_index(notes_fts_index, rowid, note_id, title, content, tags, file_path)
-    VALUES ('delete', old.rowid, old.note_id, old.title, old.content, old.tags, old.file_path);
+    INSERT INTO notes_fts_index(notes_fts_index, rowid, note_id, title, content, tags, type, file_path)
+    VALUES ('delete', old.rowid, old.note_id, old.title, old.content, old.tags, old.type, old.file_path);
 END;
 """
 
 _TRIGGER_UPDATE = """
 CREATE TRIGGER IF NOT EXISTS notes_fts_au AFTER UPDATE ON notes_fts BEGIN
-    INSERT INTO notes_fts_index(notes_fts_index, rowid, note_id, title, content, tags, file_path)
-    VALUES ('delete', old.rowid, old.note_id, old.title, old.content, old.tags, old.file_path);
-    INSERT INTO notes_fts_index(rowid, note_id, title, content, tags, file_path)
-    VALUES (new.rowid, new.note_id, new.title, new.content, new.tags, new.file_path);
+    INSERT INTO notes_fts_index(notes_fts_index, rowid, note_id, title, content, tags, type, file_path)
+    VALUES ('delete', old.rowid, old.note_id, old.title, old.content, old.tags, old.type, old.file_path);
+    INSERT INTO notes_fts_index(rowid, note_id, title, content, tags, type, file_path)
+    VALUES (new.rowid, new.note_id, new.title, new.content, new.tags, new.type, new.file_path);
 END;
 """
 
@@ -72,6 +73,10 @@ def _init_db(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE notes_fts ADD COLUMN mtime REAL DEFAULT 0")
     except sqlite3.OperationalError:
         pass
+    try:
+        conn.execute("ALTER TABLE notes_fts ADD COLUMN type TEXT DEFAULT 'note'")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
 
 
@@ -89,16 +94,17 @@ def init_fts(db_path: Path | None = None) -> sqlite3.Connection:
 
 def insert(conn: sqlite3.Connection, note_id: str, title: str, content: str,
            tags: list[str] | None = None, file_path: str = "",
-           mtime: float = 0.0) -> None:
+           mtime: float = 0.0, entry_type: str = "note") -> None:
     """插入或更新索引条目"""
     conn.execute("DELETE FROM notes_fts WHERE note_id = ?", (note_id,))
     tokenized_title = _tokenize(title)
     tokenized_content = _tokenize(content)
     tokenized_tags = _tokenize(" ".join(tags)) if tags else ""
     conn.execute(
-        "INSERT INTO notes_fts (note_id, title, content, tags, file_path, mtime) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (note_id, tokenized_title, tokenized_content, tokenized_tags, file_path, mtime),
+        "INSERT INTO notes_fts (note_id, title, content, tags, type, file_path, mtime) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (note_id, tokenized_title, tokenized_content, tokenized_tags,
+         entry_type, file_path, mtime),
     )
     conn.commit()
 
@@ -109,17 +115,26 @@ def delete(conn: sqlite3.Connection, note_id: str) -> None:
     conn.commit()
 
 
-def search(conn: sqlite3.Connection, query: str, limit: int = 5) -> list[SearchResult]:
+def search(conn: sqlite3.Connection, query: str, limit: int = 5,
+           entry_type: str | None = None) -> list[SearchResult]:
     """FTS5 全文搜索"""
     tokenized_query = _tokenize(query)
     if not tokenized_query.strip():
         return []
     fts_query = " OR ".join(tokenized_query.split())
-    rows = conn.execute(
-        "SELECT note_id, title, content, file_path "
-        "FROM notes_fts_index WHERE notes_fts_index MATCH ? LIMIT ?",
-        (fts_query, limit),
-    ).fetchall()
+    if entry_type:
+        rows = conn.execute(
+            "SELECT f.note_id, f.title, f.content, f.file_path "
+            "FROM notes_fts_index f JOIN notes_fts n ON f.note_id = n.note_id "
+            "WHERE f.notes_fts_index MATCH ? AND n.type = ? LIMIT ?",
+            (fts_query, entry_type, limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT note_id, title, content, file_path "
+            "FROM notes_fts_index WHERE notes_fts_index MATCH ? LIMIT ?",
+            (fts_query, limit),
+        ).fetchall()
     return [
         SearchResult(
             note_id=r[0], title=r[1],

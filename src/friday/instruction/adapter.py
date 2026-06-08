@@ -57,15 +57,25 @@ def teach(
     )
 
     store.save(instr)
+    _index_instruction(instr)
     _invalidate_cache()
     return instr
 
 
 def match(text: str, top_k: int = 5) -> list[MatchResult]:
-    """匹配用户输入文本到已知指令"""
+    """通过语义检索匹配用户输入文本到已知指令"""
+    from friday.knowledge.adapter import search_instructions
+    results = search_instructions(text, limit=top_k)
     instructions = _get_all()
-    results = matcher.match_instructions(text, instructions)
-    return results[:top_k]
+    matched: list[MatchResult] = []
+    for sr in results:
+        for instr in instructions:
+            if instr.name == sr.title or instr.trigger == sr.title:
+                matched.append(MatchResult(
+                    instruction=instr, score=sr.score, match_type="semantic",
+                ))
+                break
+    return matched[:top_k]
 
 
 def list_instructions() -> list[Instruction]:
@@ -76,12 +86,17 @@ def list_instructions() -> list[Instruction]:
 
 def remove(name: str) -> bool:
     """删除指定名称的指令"""
+    from friday.knowledge.adapter import delete_instruction_index
     instructions = _get_all()
     for instr in instructions:
         if instr.name == name:
-            slug = store._slugify(instr.trigger)
+            slug = store.slugify(instr.trigger)
             deleted = store.delete(slug)
             if deleted:
+                try:
+                    delete_instruction_index(f"instr_{slug}")
+                except Exception:
+                    pass
                 _invalidate_cache()
             return deleted
     return False
@@ -122,3 +137,29 @@ def _resolve_type(
     if len(actions) > 1:
         return InstructionType.WORKFLOW
     return InstructionType.SINGLE
+
+
+def search_instructions(query: str, limit: int = 5) -> list[dict]:
+    """语义检索指令，返回 [{name, trigger, score, snippet}]"""
+    from friday.knowledge.adapter import search_instructions as kb_search
+    results = kb_search(query, limit=limit)
+    return [
+        {"name": r.title, "trigger": r.title,
+         "score": r.score, "snippet": r.snippet}
+        for r in results
+    ]
+
+
+def _index_instruction(instr: Instruction) -> None:
+    """为指令建立 FTS + 向量索引"""
+    from friday.knowledge.adapter import index_instruction
+    slug = store.slugify(instr.trigger)
+    path = str(store.INSTRUCTIONS_DIR / f"{slug}.yaml")
+    keywords = instr.keywords + [instr.trigger]
+    index_instruction(
+        instr_id=f"instr_{slug}",
+        trigger=instr.trigger,
+        content=instr.description or instr.trigger,
+        keywords=keywords,
+        file_path=path,
+    )

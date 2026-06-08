@@ -77,3 +77,31 @@ class TestJiebaLogLevel:
     def test_jieba_log_level_suppressed(self) -> None:
         """导入 fts 模块后 jieba 日志级别应为 WARNING"""
         assert jieba.default_logger.level >= logging.WARNING
+
+
+class TestEntryType:
+    def test_default_type_is_note(self, fts_conn: sqlite3.Connection) -> None:
+        insert(fts_conn, "t1", "标题", "内容")
+        row = fts_conn.execute("SELECT type FROM notes_fts WHERE note_id='t1'").fetchone()
+        assert row[0] == "note"
+
+    def test_custom_entry_type(self, fts_conn: sqlite3.Connection) -> None:
+        insert(fts_conn, "t2", "触发", "内容", entry_type="instruction")
+        row = fts_conn.execute("SELECT type FROM notes_fts WHERE note_id='t2'").fetchone()
+        assert row[0] == "instruction"
+
+    def test_search_filter_by_type(self, fts_conn: sqlite3.Connection) -> None:
+        insert(fts_conn, "t3", "部署", "部署笔记", entry_type="note")
+        insert(fts_conn, "t4", "部署指令", "执行部署", entry_type="instruction")
+        notes = search(fts_conn, "部署", 10, entry_type="note")
+        instrs = search(fts_conn, "部署", 10, entry_type="instruction")
+        assert all(r.note_id == "t3" for r in notes)
+        assert all(r.note_id == "t4" for r in instrs)
+
+    def test_search_without_type_returns_all(self, fts_conn: sqlite3.Connection) -> None:
+        insert(fts_conn, "t5", "测试", "内容A", entry_type="note")
+        insert(fts_conn, "t6", "测试指令", "内容B", entry_type="instruction")
+        results = search(fts_conn, "测试", 10)
+        ids = {r.note_id for r in results}
+        assert "t5" in ids
+        assert "t6" in ids

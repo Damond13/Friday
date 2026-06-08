@@ -3,6 +3,10 @@
 from dataclasses import dataclass
 from typing import Any
 
+from friday.llm.instruction_tools import (
+    INSTRUCTION_ADD, INSTRUCTION_SEARCH, INSTRUCTION_LIST, INSTRUCTION_DELETE,
+)
+
 
 @dataclass
 class ToolDefinition:
@@ -24,8 +28,6 @@ class ToolDefinition:
         }
 
 
-# ── Shell 执行工具 ────────────────────────────────────
-
 SHELL_EXECUTE = ToolDefinition(
     name="shell_execute",
     description="执行 Shell 命令并返回输出。安全命令（ls, cat, git）可直接执行，危险命令（rm, format）需用户确认。",
@@ -46,32 +48,19 @@ SHELL_EXECUTE = ToolDefinition(
     },
 )
 
-# ── 文件读取工具 ───────────────────────────────────────
-
 FILE_READ = ToolDefinition(
     name="file_read",
     description="读取文件内容。支持文本文件，返回完整内容。",
     parameters={
         "type": "object",
         "properties": {
-            "path": {
-                "type": "string",
-                "description": "文件路径",
-            },
-            "offset": {
-                "type": "integer",
-                "description": "起始行号（从 0 开始）",
-            },
-            "limit": {
-                "type": "integer",
-                "description": "最大读取行数",
-            },
+            "path": {"type": "string", "description": "文件路径"},
+            "offset": {"type": "integer", "description": "起始行号（从 0 开始）"},
+            "limit": {"type": "integer", "description": "最大读取行数"},
         },
         "required": ["path"],
     },
 )
-
-# ── 文件写入工具 ───────────────────────────────────────
 
 FILE_WRITE = ToolDefinition(
     name="file_write",
@@ -79,20 +68,12 @@ FILE_WRITE = ToolDefinition(
     parameters={
         "type": "object",
         "properties": {
-            "path": {
-                "type": "string",
-                "description": "文件路径",
-            },
-            "content": {
-                "type": "string",
-                "description": "要写入的内容",
-            },
+            "path": {"type": "string", "description": "文件路径"},
+            "content": {"type": "string", "description": "要写入的内容"},
         },
         "required": ["path", "content"],
     },
 )
-
-# ── 知识库检索工具 ──────────────────────────────────────
 
 KNOWLEDGE_SEARCH = ToolDefinition(
     name="knowledge_search",
@@ -100,21 +81,12 @@ KNOWLEDGE_SEARCH = ToolDefinition(
     parameters={
         "type": "object",
         "properties": {
-            "query": {
-                "type": "string",
-                "description": "搜索查询",
-            },
-            "limit": {
-                "type": "integer",
-                "description": "返回结果数量，默认 5",
-                "default": 5,
-            },
+            "query": {"type": "string", "description": "搜索查询"},
+            "limit": {"type": "integer", "description": "返回结果数量，默认 5", "default": 5},
         },
         "required": ["query"],
     },
 )
-
-# ── 知识库添加工具 ──────────────────────────────────────
 
 KNOWLEDGE_ADD = ToolDefinition(
     name="knowledge_add",
@@ -122,14 +94,8 @@ KNOWLEDGE_ADD = ToolDefinition(
     parameters={
         "type": "object",
         "properties": {
-            "title": {
-                "type": "string",
-                "description": "笔记标题，最长 100 字符",
-            },
-            "content": {
-                "type": "string",
-                "description": "笔记内容",
-            },
+            "title": {"type": "string", "description": "笔记标题，最长 100 字符"},
+            "content": {"type": "string", "description": "笔记内容"},
             "tags": {
                 "type": "array",
                 "items": {"type": "string"},
@@ -143,5 +109,8 @@ KNOWLEDGE_ADD = ToolDefinition(
 
 def get_tool_definitions() -> list[dict]:
     """返回所有可用工具的 function calling 定义"""
-    tools = [SHELL_EXECUTE, FILE_READ, FILE_WRITE, KNOWLEDGE_SEARCH, KNOWLEDGE_ADD]
+    tools = [
+        SHELL_EXECUTE, FILE_READ, FILE_WRITE, KNOWLEDGE_SEARCH, KNOWLEDGE_ADD,
+        INSTRUCTION_ADD, INSTRUCTION_SEARCH, INSTRUCTION_LIST, INSTRUCTION_DELETE,
+    ]
     return [t.to_openai_format() for t in tools]
