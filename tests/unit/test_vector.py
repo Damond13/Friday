@@ -58,3 +58,30 @@ class TestVector:
         init_vector(chroma_dir)
         results = search("不存在的内容")
         assert results == []
+
+
+class TestEntryType:
+    def test_upsert_default_type_is_note(self, chroma_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(vector_mod, "_CHROMA_DIR", chroma_dir)
+        init_vector(chroma_dir)
+        upsert("vt1", "默认类型内容", title="测试")
+        results = search("默认类型内容", entry_type="note")
+        assert any(r.note_id == "vt1" for r in results)
+
+    def test_upsert_instruction_type(self, chroma_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(vector_mod, "_CHROMA_DIR", chroma_dir)
+        init_vector(chroma_dir)
+        upsert("vt2", "部署指令内容", title="部署", entry_type="instruction")
+        instr_results = search("部署指令内容", entry_type="instruction")
+        note_results = search("部署指令内容", entry_type="note")
+        assert any(r.note_id == "vt2" for r in instr_results)
+        assert not any(r.note_id == "vt2" for r in note_results)
+
+    def test_search_no_filter_returns_all(self, chroma_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(vector_mod, "_CHROMA_DIR", chroma_dir)
+        init_vector(chroma_dir)
+        upsert("vt3", "笔记内容", entry_type="note")
+        upsert("vt4", "指令内容", entry_type="instruction")
+        results = search("内容")
+        ids = {r.note_id for r in results}
+        assert "vt3" in ids or "vt4" in ids

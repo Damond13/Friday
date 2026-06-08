@@ -164,3 +164,13 @@ _register("file_read", _exec_file_read)
 _register("file_write", _exec_file_write)
 _register("knowledge_search", _exec_knowledge_search)
 _register("knowledge_add", _exec_knowledge_add)
+
+# 指令执行器从独立模块导入注册
+from friday.llm.instruction_executors import (
+    exec_instruction_add, exec_instruction_search,
+    exec_instruction_list, exec_instruction_delete,
+)
+_register("instruction_add", exec_instruction_add)
+_register("instruction_search", exec_instruction_search)
+_register("instruction_list", exec_instruction_list)
+_register("instruction_delete", exec_instruction_delete)

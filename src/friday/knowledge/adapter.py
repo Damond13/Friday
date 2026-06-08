@@ -72,14 +72,14 @@ def list_notes(limit: int = 20, offset: int = 0) -> list[Note]:
 
 
 def search(query: str, mode: str = "auto", limit: int = 5) -> list[SearchResult]:
-    """统一检索入口"""
+    """统一检索入口（仅返回知识笔记，不含指令）"""
     results: list[SearchResult] = []
     if mode in ("fts", "auto"):
-        results.extend(fts_search(get_fts(), query, limit))
+        results.extend(fts_search(get_fts(), query, limit, entry_type="note"))
     if mode in ("vector", "auto"):
         try:
             ensure_vector()
-            vec_results = vector.search(query, limit)
+            vec_results = vector.search(query, limit, entry_type="note")
             results.extend(vec_results)
         except Exception as e:
             logger.warning(f"向量检索失败，降级为仅 FTS5: {e}")
@@ -104,6 +104,46 @@ def index_note(note: Note, file_path: str) -> None:
         vector.upsert(note.id, note.content, note.title, note.tags, file_path)
     except Exception as e:
         logger.warning(f"向量索引失败: {e}")
+
+
+def index_instruction(
+    instr_id: str, trigger: str, content: str,
+    keywords: list[str] | None = None, file_path: str = "",
+) -> None:
+    """为指令建立 FTS + 向量索引（type=instruction）"""
+    combined = f"{trigger} {content} {' '.join(keywords or [])}"
+    fts_insert(get_fts(), instr_id, trigger, combined, keywords or [],
+               file_path, 0.0, entry_type="instruction")
+    try:
+        ensure_vector()
+        vector.upsert(instr_id, combined, trigger, keywords, file_path,
+                       entry_type="instruction")
+    except Exception as e:
+        logger.warning(f"指令向量索引失败: {e}")
+
+
+def search_instructions(query: str, limit: int = 5) -> list[SearchResult]:
+    """检索指令条目（仅 type=instruction）"""
+    results: list[SearchResult] = []
+    try:
+        results.extend(fts_search(get_fts(), query, limit, entry_type="instruction"))
+    except Exception:
+        pass
+    try:
+        ensure_vector()
+        results.extend(vector.search(query, limit, entry_type="instruction"))
+    except Exception as e:
+        logger.warning(f"指令向量检索失败: {e}")
+    return _deduplicate(results)[:limit]
+
+
+def delete_instruction_index(instr_id: str) -> None:
+    """清除指令的 FTS + 向量索引"""
+    fts_delete(get_fts(), instr_id)
+    try:
+        vector.delete(instr_id)
+    except Exception:
+        logger.warning(f"指令向量删除失败: {instr_id}")
 
 
 def reindex_note(note_id: str) -> None:

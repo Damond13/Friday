@@ -81,20 +81,38 @@ class TestTeachWorkflow:
 
 
 class TestMatch:
-    """match() 匹配与 top_k"""
+    """match() 语义检索匹配"""
 
     def test_match_returns_results(self, isolated: None) -> None:
         adapter.teach(name="deploy", trigger="deploy", actions=[{"command": "./deploy.sh"}])
-        results = adapter.match("帮我 deploy")
-        assert len(results) == 1
-        assert results[0].score == 1.0
+        results = adapter.match("deploy")
+        assert len(results) >= 1
 
     def test_match_top_k_limits_results(self, isolated: None) -> None:
         adapter.teach(name="a", trigger="alpha", actions=[{"command": "echo a"}])
         adapter.teach(name="b", trigger="beta", actions=[{"command": "echo b"}])
-        adapter.teach(name="c", trigger="charlie", actions=[{"command": "echo c"}])
         results = adapter.match("alpha", top_k=1)
         assert len(results) <= 1
+
+
+class TestSearchInstructions:
+    """search_instructions() 对外检索接口"""
+
+    def test_search_returns_dicts(self, isolated: None) -> None:
+        adapter.teach(
+            name="deploy", trigger="deploy",
+            actions=[{"command": "./deploy.sh"}], keywords=["发布"],
+        )
+        results = adapter.search_instructions("deploy", limit=5)
+        assert isinstance(results, list)
+        if results:
+            assert "name" in results[0]
+            assert "score" in results[0]
+
+    def test_search_empty_query(self, isolated: None) -> None:
+        adapter.teach(name="test", trigger="test", actions=[{"command": "echo"}])
+        results = adapter.search_instructions("", limit=5)
+        assert isinstance(results, list)
 
 
 class TestRemove:

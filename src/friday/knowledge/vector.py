@@ -56,13 +56,19 @@ def init_vector(chroma_dir: Path | None = None) -> chromadb.ClientAPI:
 
 
 def upsert(note_id: str, content: str, title: str = "",
-           tags: list[str] | None = None, file_path: str = "") -> None:
+           tags: list[str] | None = None, file_path: str = "",
+           entry_type: str = "note") -> None:
     """插入或更新向量"""
     from friday.knowledge.embedding import embed_text
     client = _get_client()
     collection = _get_collection(client)
     embedding = embed_text(content)
-    metadata = {"title": title, "tags": ", ".join(tags or []), "file_path": file_path}
+    metadata = {
+        "title": title,
+        "tags": ", ".join(tags or []),
+        "file_path": file_path,
+        "type": entry_type,
+    }
     collection.upsert(
         ids=[note_id],
         embeddings=[embedding],
@@ -78,17 +84,21 @@ def delete(note_id: str) -> None:
     collection.delete(ids=[note_id])
 
 
-def search(query: str, limit: int = 5) -> list[SearchResult]:
+def search(query: str, limit: int = 5,
+           entry_type: str | None = None) -> list[SearchResult]:
     """语义搜索"""
     from friday.knowledge.embedding import embed_text
     client = _get_client()
     collection = _get_collection(client)
     query_embedding = embed_text(query)
-    results = collection.query(
+    kwargs: dict = dict(
         query_embeddings=[query_embedding],
         n_results=limit,
         include=["documents", "metadatas", "distances"],
     )
+    if entry_type:
+        kwargs["where"] = {"type": entry_type}
+    results = collection.query(**kwargs)
     if not results["ids"] or not results["ids"][0]:
         return []
     search_results: list[SearchResult] = []
