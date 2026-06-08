@@ -114,8 +114,34 @@ KNOWLEDGE_SEARCH = ToolDefinition(
     },
 )
 
+# ── 知识库添加工具 ──────────────────────────────────────
+
+KNOWLEDGE_ADD = ToolDefinition(
+    name="knowledge_add",
+    description="向知识库添加一条笔记。标题和内容为必填，标签为可选。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "title": {
+                "type": "string",
+                "description": "笔记标题，最长 100 字符",
+            },
+            "content": {
+                "type": "string",
+                "description": "笔记内容",
+            },
+            "tags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "分类标签（可选）",
+            },
+        },
+        "required": ["title", "content"],
+    },
+)
+
 
 def get_tool_definitions() -> list[dict]:
     """返回所有可用工具的 function calling 定义"""
-    tools = [SHELL_EXECUTE, FILE_READ, FILE_WRITE, KNOWLEDGE_SEARCH]
+    tools = [SHELL_EXECUTE, FILE_READ, FILE_WRITE, KNOWLEDGE_SEARCH, KNOWLEDGE_ADD]
     return [t.to_openai_format() for t in tools]
