@@ -1,13 +1,13 @@
 """tools.py 单元测试"""
 
-from friday.llm.tools import get_tool_definitions, SHELL_EXECUTE, FILE_READ, FILE_WRITE, KNOWLEDGE_SEARCH
+from friday.llm.tools import get_tool_definitions, SHELL_EXECUTE, FILE_READ, FILE_WRITE, KNOWLEDGE_SEARCH, KNOWLEDGE_ADD
 
 
 def test_get_tool_definitions_returns_list():
     """应返回工具定义列表"""
     tools = get_tool_definitions()
     assert isinstance(tools, list)
-    assert len(tools) == 4
+    assert len(tools) == 5
 
 
 def test_tool_schema_format():
@@ -29,7 +29,7 @@ def test_tool_names():
     """应包含所有预期的工具名称"""
     tools = get_tool_definitions()
     names = {t["function"]["name"] for t in tools}
-    assert names == {"shell_execute", "file_read", "file_write", "knowledge_search"}
+    assert names == {"shell_execute", "file_read", "file_write", "knowledge_search", "knowledge_add"}
 
 
 def test_shell_execute_requires_command():
@@ -52,3 +52,18 @@ def test_knowledge_search_defaults():
     schema = KNOWLEDGE_SEARCH.to_openai_format()
     props = schema["function"]["parameters"]["properties"]
     assert props["limit"]["default"] == 5
+
+
+def test_knowledge_add_requires_title_and_content():
+    """knowledge_add 必须有 title 和 content"""
+    schema = KNOWLEDGE_ADD.to_openai_format()
+    params = schema["function"]["parameters"]
+    assert set(params["required"]) == {"title", "content"}
+
+
+def test_knowledge_add_has_optional_tags():
+    """knowledge_add 的 tags 应为可选参数"""
+    schema = KNOWLEDGE_ADD.to_openai_format()
+    params = schema["function"]["parameters"]
+    assert "tags" not in params["required"]
+    assert "tags" in params["properties"]

@@ -131,9 +131,36 @@ async def _exec_knowledge_search(arguments: dict) -> ToolResult:
         return ToolResult(tool_call_id="", success=False, output=f"搜索失败: {e}")
 
 
-# ── 注册所有执行器 ────────────────────────────────────────
+# ── knowledge_add ─────────────────────────────────────────
+
+MAX_TITLE_LEN = 100
+
+
+async def _exec_knowledge_add(arguments: dict) -> ToolResult:
+    """向知识库添加笔记"""
+    title = arguments.get("title", "").strip()
+    content = arguments.get("content", "").strip()
+    tags = arguments.get("tags") or []
+    if not title:
+        return ToolResult(tool_call_id="", success=False, output="缺少 title 参数")
+    if not content:
+        return ToolResult(tool_call_id="", success=False, output="缺少 content 参数")
+    truncated = len(title) > MAX_TITLE_LEN
+    if truncated:
+        title = title[:MAX_TITLE_LEN]
+    try:
+        from friday.knowledge.adapter import add_note
+        note = add_note(title=title, content=content, tags=tags)
+        msg = f"已添加笔记 (id: {note.id})「{note.title}」"
+        if truncated:
+            msg += "（标题已截断）"
+        return ToolResult(tool_call_id="", success=True, output=msg)
+    except Exception as e:
+        return ToolResult(tool_call_id="", success=False, output=f"添加失败: {e}")
+
 
 _register("shell_execute", _exec_shell)
 _register("file_read", _exec_file_read)
 _register("file_write", _exec_file_write)
 _register("knowledge_search", _exec_knowledge_search)
+_register("knowledge_add", _exec_knowledge_add)
